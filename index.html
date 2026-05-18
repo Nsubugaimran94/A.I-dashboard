@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Professional Equity Tracking Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="src/css/components.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <!-- Login Section -->
+    <div class="login-section" id="loginSection">
+        <div class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h1>🐂 Imran's Journal</h1>
+                    <p>NYSE Golden Bull Edition</p>
+                </div>
+                <form onsubmit="handleLogin(event)" class="login-form">
+                    <div class="form-group">
+                        <label for="loginEmail">Email</label>
+                        <input type="email" id="loginEmail" placeholder="Enter your email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                    </div>
+                    <button type="submit" class="login-btn">Login</button>
+                </form>
+                <div class="login-footer">
+                    <p>Demo: Use any email & password</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Section (Hidden by default) -->
+    <div class="dashboard-section" id="dashboardSection" style="display: none; background-image: url('trading.png'); background-size: cover; background-position: center; background-attachment: fixed; background-repeat: no-repeat;">
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <h1>📊 Trading Journal Dashboard</h1>
+                <div class="header-bottom">
+                    <div class="header-stats">
+                        <div class="stat-card">
+                            <span class="stat-label">Total Trades</span>
+                            <span class="stat-value" id="totalTrades">0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Win Rate</span>
+                            <span class="stat-value" id="winRate">0%</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Total P&L</span>
+                            <span class="stat-value" id="totalPL">$0</span>
+                        </div>
+                        <div class="stat-card">
+                            <span class="stat-label">Avg Trade</span>
+                            <span class="stat-value" id="avgTrade">$0</span>
+                        </div>
+                    </div>
+                    <div class="header-right">
+                        <button class="logout-btn" onclick="handleLogout()">Logout</button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+    <!-- Main Container -->
+    <div class="dashboard-container">
+        
+        <!-- Left Sidebar - Calendar Only -->
+        <aside class="sidebar">
+            <!-- Calendar Panel -->
+            <div class="panel calendar-panel">
+                <h2>📅 Calendar</h2>
+                <div class="calendar-header">
+                    <button onclick="changeMonth(-1)" class="calendar-nav">‹</button>
+                    <div id="calendarMonthLabel" class="calendar-month"></div>
+                    <button onclick="changeMonth(1)" class="calendar-nav">›</button>
+                </div>
+                <div class="calendar-grid" id="calendarGrid"></div>
+                <div class="calendar-footer">
+                    <div id="selectedDateLabel" class="selected-date"></div>
+                    <button class="clear-selection" onclick="clearSelectedDate()">Show All</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            
+            <!-- Professional Equity Curve Section -->
+            <div class="glass-card" style="margin-bottom: var(--spacing-xl);">
+                <h2 style="margin-bottom: var(--spacing-lg); color: var(--primary); display: flex; align-items: center; gap: var(--spacing-md);">
+                    📈 Equity Curve Analysis
+                    <span style="font-size: 0.875rem; color: var(--text-secondary);">Real-time performance tracking</span>
+                </h2>
+                
+                <!-- Filter Buttons -->
+                <div id="filter-buttons-container" style="margin-bottom: var(--spacing-lg);"></div>
+                
+                <!-- Equity Chart -->
+                <div class="equity-chart-container" style="height: 450px; margin-bottom: var(--spacing-lg);">
+                    <canvas id="equity-curve-canvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Statistics Grid -->
+            <div id="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-lg); margin-bottom: var(--spacing-xl);">
+                <!-- Stats rendered here -->
+            </div>
+
+            <!-- Best/Worst Trades Section -->
+            <div id="best-worst-container" style="margin-bottom: var(--spacing-xl);"></div>
+
+            <!-- Professional Trade Entry Form -->
+            <div class="glass-card" style="margin-bottom: var(--spacing-xl);">
+                <h2 style="margin-bottom: var(--spacing-lg); color: var(--primary);">➕ Add New Trade</h2>
+                <form id="trade-form-premium" class="trade-form-premium">
+                    <div class="form-group-premium">
+                        <label for="input-pair">Trading Pair *</label>
+                        <input type="text" id="input-pair" placeholder="e.g., EURUSD, BTCUSD" required>
+                    </div>
+                    <div class="form-group-premium">
+                        <label for="input-result">Profit/Loss ($) *</label>
+                        <input type="number" id="input-result" step="0.01" placeholder="e.g., 150 or -50" required>
+                    </div>
+                    <div class="form-group-premium">
+                        <label for="input-date">Date *</label>
+                        <input type="date" id="input-date" required>
+                    </div>
+                    <div class="form-group-premium">
+                        <label for="input-analysis">Analysis *</label>
+                        <select id="input-analysis" required>
+                            <option value="">Select Analysis</option>
+                            <option value="Bullish">Bullish</option>
+                            <option value="Bearish">Bearish</option>
+                            <option value="Consolidation">Consolidation</option>
+                        </select>
+                    </div>
+                    <div class="form-group-premium" style="grid-column: 1 / -1;">
+                        <label for="input-note">Trade Note</label>
+                        <textarea id="input-note" placeholder="Add any notes about this trade..." style="resize: vertical; min-height: 80px;"></textarea>
+                    </div>
+                    <button type="submit" class="btn-premium success" style="grid-column: 1 / -1;">
+                        Add Trade
+                    </button>
+                </form>
+            </div>
+
+            <!-- Account Management Section -->
+            <div id="account-controls-container" style="margin-bottom: var(--spacing-xl);"></div>
+
+            <!-- Trade History Table -->
+            <div class="glass-card">
+                <h2 style="margin-bottom: var(--spacing-lg); color: var(--primary);">📋 Trade History</h2>
+                <div id="trade-history-container">
+                    <!-- Trade history table rendered here -->
+                </div>
+            </div>
+
+            <!-- Charts Section with Tabs (Existing) -->
+            <div class="panel charts-panel" style="margin-top: var(--spacing-xl);">
+                <div class="charts-tabs-header">
+                    <h2>📊 Trading Analysis</h2>
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" onclick="switchTab('profitChart')">📈 Profit/Loss Chart</button>
+                        <button class="tab-btn" onclick="switchTab('accountSize')">💰 Account Size</button>
+                    </div>
+                </div>
+
+                <!-- Profit/Loss Line Chart -->
+                <div id="profitChart" class="chart-tab active">
+                    <h3>Account Profit/Loss Over Time</h3>
+                    <canvas id="accountProfitLossChart"></canvas>
+                </div>
+
+                <!-- Account Size Display -->
+                <div id="accountSize" class="chart-tab">
+                    <h3>Account Size Tracker</h3>
+                    <div class="account-size-display">
+                        <div class="account-stat">
+                            <span class="stat-label">Current Account Size</span>
+                            <span class="stat-value" id="currentAccountSize">$0.00</span>
+                        </div>
+                        <div class="account-stat">
+                            <span class="stat-label">Starting Balance</span>
+                            <span class="stat-value" id="startingBalance">$0.00</span>
+                        </div>
+                        <div class="account-stat">
+                            <span class="stat-label">Peak Balance</span>
+                            <span class="stat-value" id="peakBalance">$0.00</span>
+                        </div>
+                        <div class="account-stat">
+                            <span class="stat-label">Resets (Went to $0)</span>
+                            <span class="stat-value" id="resetCount">0</span>
+                        </div>
+                    </div>
+                    <div class="account-history">
+                        <h4>Account Size History</h4>
+                        <div id="accountSizeHistory" class="account-history-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Trades Section -->
+            <div class="panel trades-panel">
+                <div class="trades-header">
+                    <h2>📋 Your Trades</h2>
+                    <span class="trades-count" id="tradesCount">0 trades</span>
+                </div>
+                <div class="trades-container" id="trades-container"></div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- Upgrade Section -->
+    <div class="upgrade-section">
+        <span class="upgrade-text">✨ Unlock <strong>AI News Analysis</strong> with Plan Plus</span>
+        <a href="https://buy.stripe.com/test_aFaeV5aCR15B3vlaI987K00" style="text-decoration: none;">
+            <button class="upgrade-btn">💳 Upgrade Now</button>
+        </a>
+    </div>
+
+    <!-- News Section - Full Width Bottom -->
+    <div class="news-section-wrapper">
+        <div class="ai-news-panel" id="aiNewsPanel">
+            <div class="ai-panel-header">
+                <h2>🤖 Market News AI Panel - FOREX</h2>
+                <button class="refresh-ai-news" onclick="generateAINews()">Refresh AI Analysis</button>
+            </div>
+            
+            <div class="ai-filters">
+                <button class="filter-btn active" onclick="filterNewsByImpact('all')">All</button>
+                <button class="filter-btn" onclick="filterNewsByImpact('high')">High Impact</button>
+                <button class="filter-btn" onclick="filterNewsByImpact('medium')">Medium</button>
+                <button class="filter-btn" onclick="filterNewsByImpact('low')">Low</button>
+            </div>
+            
+            <div id="aiNewsContainer" class="ai-news-container"></div>
+        </div>
+    </div>
+
+    </div>
+
+    <!-- Legacy Script for Authentication & Existing Features -->
+    <script src="script.js"></script>
+    
+    <!-- Professional Dashboard Module -->
+    <script type="module">
+        import TradingDashboardApp from './src/app.js';
+        // App initializes on import
+    </script>
+
+</body>
+
+</html>
