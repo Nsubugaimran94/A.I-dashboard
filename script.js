@@ -1,4 +1,62 @@
-// Mobile viewport fix for keyboard
+const supabaseUrl = "https://qzhiseywodahrtqcdtpe.supabase.co";
+
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6aGlzZXl3b2RhaHJ0cWNkdHBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NDgxMDgsImV4cCI6MjA5NDQyNDEwOH0.8ApFcHsPCtN0Tdp1uWyIDahHgeT_mO6bB6yi5hVjKKo";
+
+const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+
+// Supabase Auth Functions
+async function supabaseSignUp(email, password) {
+    try {
+        const { data, error } = await supabaseClient.auth.signUp({
+            email: email,
+            password: password,
+            options: {
+                emailRedirectTo: window.location.origin,
+            }
+        });
+
+        if (error) {
+            console.error("Signup error:", error);
+            return { success: false, message: error.message };
+        } else {
+            return { success: true, message: "Account created successfully! You can now login." };
+        }
+    } catch (error) {
+        console.error("Signup exception:", error);
+        return { success: false, message: error.message };
+    }
+}
+
+async function supabaseLogin(email, password) {
+    try {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({
+            email: email,
+            password: password
+        });
+
+        if (error) {
+            console.error("Login error:", error);
+            if (error.message.includes("Invalid login credentials")) {
+                return { success: false, message: "❌ Invalid email or password. Please check your credentials." };
+            } else if (error.message.includes("Email not confirmed")) {
+                return { success: false, message: "Please confirm your email before logging in." };
+            } else {
+                return { success: false, message: error.message };
+            }
+        } else {
+            isAuthenticated = true;
+            currentUser = email;
+            localStorage.setItem("authToken", data.session.access_token);
+            localStorage.setItem("userName", email);
+            localStorage.setItem("userId", data.user.id);
+            return { success: true, message: "Login successful!" };
+        }
+    } catch (error) {
+        console.error("Login exception:", error);
+        return { success: false, message: error.message };
+    }
+}
+    // Mobile viewport fix for keyboard
 if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     const vh = window.innerHeight * 0.01;
     document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -8,54 +66,227 @@ if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     });
 }
 
+// Supabase Data Functions
+async function saveTradeToSupabase(trade) {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return false;
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('trades')
+            .insert([
+                {
+                    user_id: userId,
+                    pair: trade.pair,
+                    result: trade.result,
+                    analysis: trade.analysis,
+                    date: trade.date,
+                    note: trade.note || '',
+                    created_at: new Date().toISOString()
+                }
+            ]);
+        
+        if (error) {
+            console.error('Error saving trade:', error);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('Error saving trade to Supabase:', error);
+        return false;
+    }
+}
+
+async function loadTradesFromSupabase() {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('trades')
+            .select('*')
+            .eq('user_id', userId)
+            .order('date', { ascending: false });
+        
+        if (error) {
+            console.error('Error loading trades:', error);
+            return;
+        }
+        
+        if (data) {
+            trades = data;
+            localStorage.setItem("trading_trades", JSON.stringify(trades));
+            displayTrades();
+            renderCalendar();
+            updateDashboardStats();
+            updateCharts();
+        }
+    } catch (error) {
+        console.error('Error loading trades from Supabase:', error);
+    }
+}
+
+async function deleteTradeFromSupabase(id) {
+    try {
+        const { error } = await supabaseClient
+            .from('trades')
+            .delete()
+            .eq('id', id);
+        
+        if (error) {
+            console.error('Error deleting trade:', error);
+            return false;
+        }
+        return true;
+    } catch (error) {
+        console.error('Error deleting trade from Supabase:', error);
+        return false;
+    }
+}
+
 // Authentication
 let isAuthenticated = false;
 let currentUser = null;
 
 // Check authentication on page load
-function checkAuthentication() {
-    const authToken = localStorage.getItem("authToken");
-    const userName = localStorage.getItem("userName");
+async function checkAuthentication() {
+    const { data: { session }, error } = await supabaseClient.auth.getSession();
     
-    if (authToken && userName) {
+    if (session && session.user) {
         isAuthenticated = true;
-        currentUser = userName;
+        currentUser = session.user.email;
+        localStorage.setItem("authToken", session.access_token);
+        localStorage.setItem("userName", session.user.email);
+        localStorage.setItem("userId", session.user.id);
         showDashboard();
+        await loadTradesFromSupabase();
     } else {
         showLogin();
     }
 }
 
-function handleLogin(event) {
+// Form handling
+function switchToLogin() {
+    document.getElementById("loginForm").style.display = "block";
+    document.getElementById("signupForm").style.display = "none";
+    document.getElementById("loginTab").style.borderBottom = "3px solid #38bdf8";
+    document.getElementById("loginTab").style.color = "#38bdf8";
+    document.getElementById("signupTab").style.borderBottom = "3px solid transparent";
+    document.getElementById("signupTab").style.color = "#94a3b8";
+}
+
+function switchToSignup() {
+    document.getElementById("loginForm").style.display = "none";
+    document.getElementById("signupForm").style.display = "block";
+    document.getElementById("loginTab").style.borderBottom = "3px solid transparent";
+    document.getElementById("loginTab").style.color = "#94a3b8";
+    document.getElementById("signupTab").style.borderBottom = "3px solid #38bdf8";
+    document.getElementById("signupTab").style.color = "#38bdf8";
+}
+
+async function handleSignup(event) {
+    event.preventDefault();
+    
+    const email = document.getElementById("signupEmail").value;
+    const password = document.getElementById("signupPassword").value;
+    const confirmPassword = document.getElementById("signupConfirm").value;
+
+    if (!email || !password || !confirmPassword) {
+        alert("Please fill in all fields");
+        return;
+    }
+
+    if (password !== confirmPassword) {
+        alert("Passwords do not match");
+        return;
+    }
+
+    if (password.length < 6) {
+        alert("Password must be at least 6 characters");
+        return;
+    }
+
+    const result = await supabaseSignUp(email, password);
+    
+    if (result.success) {
+        alert(result.message);
+        // Clear form
+        document.getElementById("signupForm").reset();
+        // Switch to login
+        switchToLogin();
+        // Auto-fill email for convenience
+        document.getElementById("loginEmail").value = email;
+    } else {
+        alert("Signup failed: " + result.message);
+    }
+}
+
+async function handleLogin(event) {
     event.preventDefault();
     
     const email = document.getElementById("loginEmail").value;
     const password = document.getElementById("loginPassword").value;
-    
+
     if (!email || !password) {
         alert("Please fill in all fields");
         return;
     }
+
+    const result = await supabaseLogin(email, password);
     
-    // Simple authentication - store credentials in localStorage
-    const authToken = btoa(email + ":" + password); // Base64 encode
-    localStorage.setItem("authToken", authToken);
-    localStorage.setItem("userName", email);
-    
-    isAuthenticated = true;
-    currentUser = email;
-    
-    // Clear login form
-    document.getElementById("loginEmail").value = "";
-    document.getElementById("loginPassword").value = "";
-    
-    showDashboard();
+    if (result.success) {
+        alert(result.message);
+        showDashboard();
+        loadTradesFromSupabase();
+    } else {
+        alert("Login failed: " + result.message);
+    }
 }
 
-function handleLogout() {
+function toggleAuthMode() {
+    const toggle = document.getElementById("loginToggle");
+    const modeLabel = document.getElementById("authToggleLabel");
+    const submitBtn = document.getElementById("authSubmitBtn");
+    const toggleLink = document.getElementById("authModeToggle");
+    
+    if (toggle.checked) {
+        // Sign up mode
+        modeLabel.textContent = "Sign Up Mode";
+        submitBtn.textContent = "Create Account";
+        toggleLink.textContent = "Already have account? Login";
+    } else {
+        // Login mode
+        modeLabel.textContent = "Login Mode";
+        submitBtn.textContent = "Login";
+        toggleLink.textContent = "New user? Create account";
+    }
+}
+
+// Add click handler for toggle link
+window.addEventListener('load', function() {
+    const toggleLink = document.getElementById("authModeToggle");
+    if (toggleLink) {
+        toggleLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            const toggle = document.getElementById("loginToggle");
+            toggle.checked = !toggle.checked;
+            toggleAuthMode();
+        });
+    }
+});
+
+async function handleLogout() {
     if (confirm("Are you sure you want to logout?")) {
+        const { error } = await supabaseClient.auth.signOut();
+        
+        if (error) {
+            alert("Error logging out: " + error.message);
+            return;
+        }
+        
         localStorage.removeItem("authToken");
         localStorage.removeItem("userName");
+        localStorage.removeItem("userId");
         
         isAuthenticated = false;
         currentUser = null;
@@ -73,10 +304,14 @@ function showDashboard() {
     document.getElementById("loginSection").style.display = "none";
     document.getElementById("dashboardSection").style.display = "block";
     
-    // Initialize dashboard with slight delay to ensure DOM is ready
+    // Initialize dashboard with longer delay to ensure DOM is ready
     setTimeout(() => {
         initializeDashboard();
-    }, 100);
+        // Call updateAccountSize again to ensure balance is updated
+        setTimeout(() => {
+            updateAccountSize();
+        }, 200);
+    }, 300);
 }
 
 function initializeDashboard() {
@@ -98,8 +333,11 @@ function initializeDashboard() {
     }
 }
 
-let trades = JSON.parse(localStorage.getItem("trades")) || [];
+let trades = JSON.parse(localStorage.getItem("trading_trades")) || [];
 let accountHistory = JSON.parse(localStorage.getItem("accountHistory")) || [];
+let deposits = JSON.parse(localStorage.getItem("deposits")) || [];
+let withdrawals = JSON.parse(localStorage.getItem("withdrawals")) || [];
+const STARTING_BALANCE = 10000;
 
 const todayDate = new Date();
 const today = formatDate(todayDate);
@@ -136,11 +374,16 @@ function addTrade() {
         pair: pair,
         result: parseFloat(result),
         analysis: analysis,
-        date: date
+        date: date,
+        note: document.getElementById("note")?.value || ''
     };
 
+    // Save to localStorage
     trades.push(trade);
-    localStorage.setItem("trades", JSON.stringify(trades));
+    localStorage.setItem("trading_trades", JSON.stringify(trades));
+    
+    // Save to Supabase
+    saveTradeToSupabase(trade);
 
     selectedDate = date;
     displayTrades();
@@ -153,19 +396,233 @@ function addTrade() {
     document.getElementById("result").value = "";
     document.getElementById("tradeDate").value = today;
     document.getElementById("analysis").value = "";
+    if (document.getElementById("note")) {
+        document.getElementById("note").value = "";
+    }
 }
+
+function addDeposit() {
+    const amount = parseFloat(document.getElementById("deposit-amount")?.value);
+    if (!amount || amount <= 0) {
+        alert("Please enter a valid deposit amount");
+        return;
+    }
+    
+    const deposit = {
+        amount: amount,
+        date: today,
+        id: Date.now()
+    };
+    
+    deposits.push(deposit);
+    localStorage.setItem("deposits", JSON.stringify(deposits));
+    console.log('💰 Deposit added:', deposit);
+    console.log('Total deposits:', deposits);
+    
+    document.getElementById("deposit-amount").value = "";
+    
+    // Force update all displays
+    updateAccountSize();
+    updateDashboardStats();
+    updateCharts();
+    displayTrades();
+    
+    showNotification(`Deposit of $${amount.toFixed(2)} added successfully!`, 'success');
+}
+
+function addWithdrawal() {
+    const amount = parseFloat(document.getElementById("withdrawal-amount")?.value);
+    if (!amount || amount <= 0) {
+        alert("Please enter a valid withdrawal amount");
+        return;
+    }
+    
+    const totalPL = trades.reduce((sum, t) => sum + (t.result || 0), 0);
+    const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+    const currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
+    
+    if (amount > currentBalance) {
+        alert("Insufficient funds! Current balance: $" + currentBalance.toFixed(2));
+        return;
+    }
+    
+    const withdrawal = {
+        amount: amount,
+        date: today,
+        id: Date.now()
+    };
+    
+    withdrawals.push(withdrawal);
+    localStorage.setItem("withdrawals", JSON.stringify(withdrawals));
+    console.log('💸 Withdrawal added:', withdrawal);
+    console.log('Total withdrawals:', withdrawals);
+    
+    document.getElementById("withdrawal-amount").value = "";
+    
+    // Force update all displays
+    updateAccountSize();
+    updateDashboardStats();
+    updateCharts();
+    displayTrades();
+    
+    showNotification(`Withdrawal of $${amount.toFixed(2)} processed successfully!`, 'success');
+}
+
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${type === 'success' ? '#10b981' : '#38bdf8'};
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        z-index: 10000;
+        animation: slideIn 0.3s ease-in-out;
+    `;
+    notification.textContent = message;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+function openTransactionHistoryModal() {
+    // Create modal if it doesn't exist
+    let modal = document.getElementById('transaction-history-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'transaction-history-modal';
+        modal.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        `;
+        modal.innerHTML = `
+            <div style="
+                background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
+                border-radius: 16px;
+                padding: 30px;
+                max-width: 600px;
+                width: 90%;
+                max-height: 80vh;
+                overflow-y: auto;
+                border: 1px solid rgba(56, 189, 248, 0.2);
+            ">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 style="color: #38bdf8; margin: 0; font-size: 1.5rem;">📋 Transaction History</h2>
+                    <button onclick="document.getElementById('transaction-history-modal').remove()" style="
+                        background: none;
+                        border: none;
+                        color: #94a3b8;
+                        font-size: 1.5rem;
+                        cursor: pointer;
+                        padding: 0;
+                        width: 30px;
+                        height: 30px;
+                    ">×</button>
+                </div>
+                <div id="modal-transaction-list" style="max-height: 60vh; overflow-y: auto;"></div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+    }
+    
+    // Populate the transaction list
+    populateModalTransactionList();
+    modal.style.display = 'flex';
+}
+
+function populateModalTransactionList() {
+    const listContainer = document.getElementById('modal-transaction-list');
+    if (!listContainer) return;
+    
+    listContainer.innerHTML = '';
+    
+    // Combine all transactions
+    const allTransactions = [
+        ...trades.map(t => ({ date: t.date, amount: t.result, type: 'trade', pair: t.pair })),
+        ...deposits.map(d => ({ date: d.date, amount: d.amount, type: 'deposit' })),
+        ...withdrawals.map(w => ({ date: w.date, amount: w.amount, type: 'withdrawal' }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    if (allTransactions.length === 0) {
+        listContainer.innerHTML = '<p style="text-align: center; color: #94a3b8;">No transactions yet</p>';
+        return;
+    }
+    
+    allTransactions.forEach((tx) => {
+        const item = document.createElement('div');
+        item.style.cssText = `
+            padding: 15px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid ${tx.type === 'trade' ? (tx.amount >= 0 ? '#10b981' : '#ef4444') : tx.type === 'deposit' ? '#10b981' : '#ef4444'};
+        `;
+        
+        let icon = '📋';
+        let color = '#94a3b8';
+        let displayAmount = tx.amount.toFixed(2);
+        let title = tx.type.toUpperCase();
+        
+        if (tx.type === 'trade') {
+            color = tx.amount >= 0 ? '#10b981' : '#ef4444';
+            icon = tx.amount >= 0 ? '✅' : '❌';
+            displayAmount = (tx.amount >= 0 ? '+' : '') + tx.amount.toFixed(2);
+            title = `${icon} TRADE - ${tx.pair}`;
+        } else if (tx.type === 'deposit') {
+            color = '#10b981';
+            icon = '💰';
+            displayAmount = '+' + tx.amount.toFixed(2);
+            title = '💰 DEPOSIT';
+        } else if (tx.type === 'withdrawal') {
+            color = '#ef4444';
+            icon = '💸';
+            displayAmount = '-' + tx.amount.toFixed(2);
+            title = '💸 WITHDRAWAL';
+        }
+        
+        item.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                <div>
+                    <div style="font-weight: bold; color: ${color}; font-size: 1rem;">${title}</div>
+                    <div style="font-size: 0.85rem; color: #94a3b8; margin-top: 4px;">${tx.date}</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-weight: bold; color: ${color}; font-size: 1.2rem;">$${displayAmount}</div>
+                </div>
+            </div>
+        `;
+        listContainer.appendChild(item);
+    });
+}
+
+// Close modal when clicking outside
+document.addEventListener('click', (e) => {
+    const modal = document.getElementById('transaction-history-modal');
+    if (modal && e.target === modal) {
+        modal.remove();
+    }
+});
 
 // Dashboard Stats Functions
 function updateDashboardStats() {
     const totalTrades = trades.length;
-    const winningTrades = trades.filter(t => t.result > 0).length;
-    const winRate = totalTrades > 0 ? ((winningTrades / totalTrades) * 100).toFixed(1) : 0;
     const totalPL = trades.reduce((sum, t) => sum + t.result, 0);
     const avgTrade = totalTrades > 0 ? (totalPL / totalTrades).toFixed(2) : 0;
 
     document.getElementById("totalTrades").textContent = totalTrades;
-    document.getElementById("winRate").textContent = winRate + "%";
-    document.getElementById("totalPL").textContent = "$" + totalPL.toFixed(2);
     document.getElementById("avgTrade").textContent = "$" + avgTrade;
 }
 
@@ -250,103 +707,86 @@ function switchTab(tabName) {
     }
     
     // Add active class to clicked button
-    event.target.classList.add('active');
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
 }
 
 // Account Size Tracking Functions
 function updateAccountSize() {
-    // Calculate current account balance
-    let currentBalance = 0;
-    trades.forEach(t => {
-        currentBalance += t.result;
-    });
+    // Calculate P&L from trades
+    const totalPL = trades.reduce((sum, t) => sum + (t.result || 0), 0);
     
-    // Get account history with resets
-    let startingBalance = 0;
-    let peakBalance = currentBalance;
-    let resetCount = 0;
+    // Calculate total deposits and withdrawals
+    const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
     
-    if (accountHistory.length === 0 && trades.length > 0) {
-        // Initialize account history
-        let balance = 0;
-        trades.forEach(trade => {
-            balance += trade.result;
-            accountHistory.push({
-                date: trade.date,
-                balance: balance
-            });
-            
-            // Check for reset
-            if (balance === 0 && balance < currentBalance) {
-                resetCount++;
-            }
-            
-            // Track peak
-            if (balance > peakBalance) {
-                peakBalance = balance;
-            }
-        });
-    } else {
-        // Update existing history with new trades
-        let lastBalance = accountHistory.length > 0 ? accountHistory[accountHistory.length - 1].balance : 0;
-        trades.forEach((trade, idx) => {
-            const historyIndex = accountHistory.findIndex(h => h.date === trade.date && h.balance === lastBalance + trade.result);
-            if (historyIndex === -1) {
-                lastBalance += trade.result;
-                accountHistory.push({
-                    date: trade.date,
-                    balance: lastBalance
-                });
-            }
-        });
+    // Current balance = Starting balance + P&L + Deposits - Withdrawals
+    const currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
+    
+    // Update header balance display
+    const headerBalance = document.getElementById('currentBalance');
+    if (headerBalance) {
+        headerBalance.textContent = '$' + currentBalance.toFixed(2);
+        headerBalance.style.color = currentBalance >= STARTING_BALANCE ? '#10b981' : '#ef4444';
     }
-    
-    // Count resets
-    accountHistory.forEach((entry, idx) => {
-        if (entry.balance === 0 && idx > 0) {
-            resetCount++;
-        }
-    });
-    
-    // Find starting balance
-    startingBalance = accountHistory.length > 0 ? 0 : currentBalance;
-    if (accountHistory.length > 0) {
-        const firstEntry = accountHistory[0];
-        startingBalance = firstEntry.balance - (trades[0]?.result || 0);
-    }
-    
-    // Find peak balance
-    peakBalance = Math.max(currentBalance, ...accountHistory.map(h => h.balance));
-    
-    // Update UI
-    document.getElementById('currentAccountSize').textContent = '$' + currentBalance.toFixed(2);
-    document.getElementById('startingBalance').textContent = '$' + startingBalance.toFixed(2);
-    document.getElementById('peakBalance').textContent = '$' + peakBalance.toFixed(2);
-    document.getElementById('resetCount').textContent = resetCount;
     
     // Update account history display
-    displayAccountHistory();
+    displayTransactionHistory();
     
     // Save to localStorage
     localStorage.setItem("accountHistory", JSON.stringify(accountHistory));
+    
+    console.log('✅ Account Balance Updated - Current Balance: $' + currentBalance.toFixed(2));
 }
 
-function displayAccountHistory() {
+function displayTransactionHistory() {
     const historyContainer = document.getElementById('accountSizeHistory');
+    if (!historyContainer) return; // Element doesn't exist anymore
+    
     historyContainer.innerHTML = '';
     
-    if (accountHistory.length === 0) {
-        historyContainer.innerHTML = '<p style="text-align: center; color: #94a3b8;">No account history yet</p>';
+    // Combine all transactions
+    const allTransactions = [
+        ...trades.map(t => ({ date: t.date, amount: t.result, type: 'trade', pair: t.pair })),
+        ...deposits.map(d => ({ date: d.date, amount: d.amount, type: 'deposit' })),
+        ...withdrawals.map(w => ({ date: w.date, amount: w.amount, type: 'withdrawal' }))
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    if (allTransactions.length === 0) {
+        historyContainer.innerHTML = '<p style="text-align: center; color: #94a3b8;">No transactions yet</p>';
         return;
     }
     
-    accountHistory.forEach((entry, idx) => {
+    allTransactions.forEach((tx) => {
         const historyItem = document.createElement('div');
-        historyItem.className = 'history-item';
-        const color = entry.balance >= 0 ? '#10b981' : '#ef4444';
+        historyItem.className = 'transaction-item';
+        let color = '#94a3b8';
+        let icon = '📋';
+        let displayAmount = tx.amount.toFixed(2);
+        
+        if (tx.type === 'trade') {
+            color = tx.amount >= 0 ? '#10b981' : '#ef4444';
+            icon = tx.amount >= 0 ? '✅' : '❌';
+            displayAmount = (tx.amount >= 0 ? '+' : '') + tx.amount.toFixed(2);
+        } else if (tx.type === 'deposit') {
+            color = '#10b981';
+            icon = '💰';
+            displayAmount = '+' + tx.amount.toFixed(2);
+        } else if (tx.type === 'withdrawal') {
+            color = '#ef4444';
+            icon = '💸';
+            displayAmount = '-' + tx.amount.toFixed(2);
+        }
+        
         historyItem.innerHTML = `
-            <span class="history-date">${entry.date}</span>
-            <span class="history-balance" style="color: ${color};">$${entry.balance.toFixed(2)}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(15, 23, 42, 0.6); border-radius: 8px; margin-bottom: 8px;">
+                <div style="flex: 1;">
+                    <div style="font-weight: bold; color: ${color};">${icon} ${tx.type.toUpperCase()}${tx.pair ? ' - ' + tx.pair : ''}</div>
+                    <div style="font-size: 0.85rem; color: #94a3b8;">${tx.date}</div>
+                </div>
+                <div style="text-align: right; font-weight: bold; color: ${color}; font-size: 1.1rem;">$${displayAmount}</div>
+            </div>
         `;
         historyContainer.appendChild(historyItem);
     });
