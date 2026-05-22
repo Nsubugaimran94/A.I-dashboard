@@ -131,7 +131,6 @@ class TradingDashboardApp {
 
         // Update statistics
         const stats = getTradeStatistics(trades, startingBalance);
-        DashboardUI.renderStatCards(stats);
         DashboardUI.renderBestWorstTrades(stats);
     }
 
@@ -140,9 +139,6 @@ class TradingDashboardApp {
      */
     async render() {
         const state = tradeManager.getState();
-
-        // Render stat cards
-        DashboardUI.renderStatCards(state.statistics);
 
         // Render best/worst trades
         DashboardUI.renderBestWorstTrades(state.statistics);

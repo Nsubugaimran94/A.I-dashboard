@@ -458,6 +458,50 @@
     }
 }
 
+/* ===== ACCOUNT MANAGEMENT RESPONSIVE ===== */
+.account-management-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.account-row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: var(--spacing-md);
+    align-items: center;
+}
+
+.account-input {
+    padding: var(--spacing-md);
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font-size: 1rem;
+    transition: all 0.2s ease;
+}
+
+.account-input:focus {
+    outline: none;
+    border-color: #38bdf8;
+    background: rgba(56, 189, 248, 0.1);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+.account-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.account-btn {
+    padding: var(--spacing-md) var(--spacing-lg);
+    font-size: 1rem;
+    font-weight: 600;
+    white-space: nowrap;
+    height: auto;
+}
+
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
     :root {
@@ -479,6 +523,22 @@
 
     .modal {
         padding: var(--spacing-xl);
+    }
+
+    /* Mobile optimizations for account management */
+    .account-row {
+        grid-template-columns: 1fr;
+        gap: var(--spacing-md);
+    }
+
+    .account-input,
+    .account-btn {
+        min-height: 48px;
+        font-size: 1rem;
+    }
+
+    .account-btn {
+        padding: 12px var(--spacing-md);
     }
 }
 
@@ -518,6 +578,36 @@
         font-size: 12px;
         font-weight: 600;
     }
+
+    /* Mobile optimizations for account management */
+    .account-management-grid {
+        gap: 12px;
+    }
+
+    .account-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .account-input {
+        min-height: 44px;
+        padding: 10px 12px;
+        font-size: 16px;
+        border-radius: 8px;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+
+    .account-btn {
+        min-height: 44px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 8px;
+        -webkit-appearance: none;
+        appearance: none;
+    }
+}
 
     .form-group-premium input,
     .form-group-premium select,

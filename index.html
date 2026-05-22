@@ -146,11 +146,6 @@
                 </div>
             </div>
 
-            <!-- Statistics Grid -->
-            <div id="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: var(--spacing-lg); margin-bottom: var(--spacing-xl);">
-                <!-- Stats rendered here -->
-            </div>
-
             <!-- Best/Worst Trades Section -->
             <div id="best-worst-container" style="margin-bottom: var(--spacing-xl);"></div>
 
@@ -192,11 +187,15 @@
             <!-- Account Management Section -->
             <div class="glass-card" style="margin-bottom: var(--spacing-xl);">
                 <h2 style="margin-bottom: var(--spacing-lg); color: var(--primary);">💳 Account Management</h2>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: var(--spacing-md);">
-                    <input type="number" id="deposit-amount" placeholder="Deposit Amount" style="padding: var(--spacing-md); background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-md); color: var(--text);" step="0.01" />
-                    <button class="btn-premium success" onclick="addDeposit()" style="background: linear-gradient(135deg, #10b981, #059669);">💰 Add Deposit</button>
-                    <input type="number" id="withdrawal-amount" placeholder="Withdrawal Amount" style="padding: var(--spacing-md); background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: var(--radius-md); color: var(--text);" step="0.01" />
-                    <button class="btn-premium danger" onclick="addWithdrawal()" style="background: linear-gradient(135deg, #ef4444, #dc2626);">💸 Add Withdrawal</button>
+                <div class="account-management-grid">
+                    <div class="account-row">
+                        <input type="number" id="deposit-amount" placeholder="Deposit Amount" class="account-input" step="0.01" />
+                        <button class="btn-premium success account-btn" onclick="addDeposit()" style="background: linear-gradient(135deg, #10b981, #059669);">💰 Add Deposit</button>
+                    </div>
+                    <div class="account-row">
+                        <input type="number" id="withdrawal-amount" placeholder="Withdrawal Amount" class="account-input" step="0.01" />
+                        <button class="btn-premium danger account-btn" onclick="addWithdrawal()" style="background: linear-gradient(135deg, #ef4444, #dc2626);">💸 Add Withdrawal</button>
+                    </div>
                 </div>
             </div>
 
