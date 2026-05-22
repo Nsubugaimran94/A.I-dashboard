@@ -102,8 +102,20 @@ export class EquityCurveChart {
      * Initialize the chart
      */
     init(data) {
-        const ctx = document.getElementById(this.containerId).getContext('2d');
+        const canvas = document.getElementById(this.containerId);
+        if (!canvas) {
+            console.error(`❌ Canvas element with id '${this.containerId}' not found`);
+            return null;
+        }
+
+        const ctx = canvas.getContext('2d');
         
+        // Ensure we have valid data
+        if (!data || data.length === 0) {
+            console.warn('⚠️ No data provided to equity curve chart');
+            data = [{ date: new Date().toISOString().split('T')[0], balance: 0, trades: 0 }];
+        }
+
         // Calculate gradient for profit/loss zones
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
         gradient.addColorStop(0, 'rgba(56, 189, 248, 0.3)');
@@ -125,17 +137,29 @@ export class EquityCurveChart {
                     pointRadius: (context) => {
                         // Show points on trades
                         const data = context.raw;
-                        return data.tradeResult ? 6 : 0;
+                        return (data.tradeResult || data.eventType) ? 6 : 0;
                     },
                     pointBackgroundColor: (context) => {
                         const data = context.raw;
-                        if (!data.tradeResult) return 'transparent';
-                        return data.tradeResult > 0 ? '#10b981' : '#ef4444';
+                        if (data.tradeResult) {
+                            return data.tradeResult > 0 ? '#10b981' : '#ef4444';
+                        } else if (data.eventType === 'deposit') {
+                            return '#3b82f6';
+                        } else if (data.eventType === 'withdrawal') {
+                            return '#f59e0b';
+                        }
+                        return 'transparent';
                     },
                     pointBorderColor: (context) => {
                         const data = context.raw;
-                        if (!data.tradeResult) return 'transparent';
-                        return data.tradeResult > 0 ? '#10b981' : '#ef4444';
+                        if (data.tradeResult) {
+                            return data.tradeResult > 0 ? '#10b981' : '#ef4444';
+                        } else if (data.eventType === 'deposit') {
+                            return '#3b82f6';
+                        } else if (data.eventType === 'withdrawal') {
+                            return '#f59e0b';
+                        }
+                        return 'transparent';
                     },
                     pointBorderWidth: 2,
                     pointHoverRadius: 8,

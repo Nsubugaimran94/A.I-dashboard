@@ -113,36 +113,65 @@ export function calculateDrawdown(equityHistory) {
  */
 export function generateEquityCurveData(trades, startingBalance, deposits, withdrawals) {
     let balance = startingBalance;
-    const equityData = [{ date: new Date().toISOString().split('T')[0], balance, trades: 0 }];
+    const equityData = [];
     
-    // Sort trades by date
-    const sortedTrades = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
-    sortedTrades.forEach((trade, index) => {
-        balance += trade.result;
-        equityData.push({
-            date: trade.date,
-            balance,
-            trades: index + 1,
-            tradeResult: trade.result,
-            pair: trade.pair
-        });
-    });
-    
-    // Add deposits and withdrawals
+    // Create all events sorted by date
     const allEvents = [
-        ...deposits.map(d => ({ ...d, type: 'deposit', date: d.date })),
-        ...withdrawals.map(w => ({ ...w, type: 'withdrawal', date: w.date }))
+        { type: 'start', date: new Date().toISOString().split('T')[0], amount: 0 },
+        ...trades.map(t => ({ ...t, type: 'trade' })),
+        ...deposits.map(d => ({ ...d, type: 'deposit' })),
+        ...withdrawals.map(w => ({ ...w, type: 'withdrawal' }))
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
-    
+
+    let tradeCount = 0;
+
     allEvents.forEach(event => {
-        if (event.type === 'deposit') {
+        if (event.type === 'start') {
+            equityData.push({
+                date: event.date,
+                balance: startingBalance,
+                trades: 0
+            });
+        } else if (event.type === 'trade') {
+            balance += event.result;
+            tradeCount++;
+            equityData.push({
+                date: event.date,
+                balance,
+                trades: tradeCount,
+                tradeResult: event.result,
+                pair: event.pair
+            });
+        } else if (event.type === 'deposit') {
             balance += event.amount;
-        } else {
+            equityData.push({
+                date: event.date,
+                balance,
+                trades: tradeCount,
+                eventType: 'deposit',
+                amount: event.amount
+            });
+        } else if (event.type === 'withdrawal') {
             balance -= event.amount;
+            equityData.push({
+                date: event.date,
+                balance,
+                trades: tradeCount,
+                eventType: 'withdrawal',
+                amount: event.amount
+            });
         }
     });
-    
+
+    // Ensure we have at least one data point
+    if (equityData.length === 0) {
+        equityData.push({
+            date: new Date().toISOString().split('T')[0],
+            balance: startingBalance,
+            trades: 0
+        });
+    }
+
     return equityData;
 }
 

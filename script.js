@@ -113,9 +113,12 @@ async function loadTradesFromSupabase() {
             return;
         }
         
-        if (data) {
+        if (data && window.tradeManager) {
+            // Update tradeManager with Supabase data
             trades = data;
-            localStorage.setItem("trading_trades", JSON.stringify(trades));
+            window.tradeManager.trades = data;
+            window.tradeManager.saveTrades();
+            window.tradeManager.notify();
             displayTrades();
             renderCalendar();
             updateDashboardStats();
@@ -140,6 +143,68 @@ async function deleteTradeFromSupabase(id) {
         return true;
     } catch (error) {
         console.error('Error deleting trade from Supabase:', error);
+        return false;
+    }
+}
+
+async function saveDepositToSupabase(deposit) {
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+        console.log('⚠️ No user ID, deposit saved locally only');
+        return false;
+    }
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('deposits')
+            .insert([
+                {
+                    user_id: userId,
+                    amount: deposit.amount,
+                    date: deposit.date,
+                    created_at: new Date().toISOString()
+                }
+            ]);
+        
+        if (error) {
+            console.error('❌ Error saving deposit to Supabase:', error);
+            return false;
+        }
+        console.log('✅ Deposit saved to Supabase:', deposit);
+        return true;
+    } catch (error) {
+        console.error('❌ Error saving deposit to Supabase:', error);
+        return false;
+    }
+}
+
+async function saveWithdrawalToSupabase(withdrawal) {
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+        console.log('⚠️ No user ID, withdrawal saved locally only');
+        return false;
+    }
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('withdrawals')
+            .insert([
+                {
+                    user_id: userId,
+                    amount: withdrawal.amount,
+                    date: withdrawal.date,
+                    created_at: new Date().toISOString()
+                }
+            ]);
+        
+        if (error) {
+            console.error('❌ Error saving withdrawal to Supabase:', error);
+            return false;
+        }
+        console.log('✅ Withdrawal saved to Supabase:', withdrawal);
+        return true;
+    } catch (error) {
+        console.error('❌ Error saving withdrawal to Supabase:', error);
         return false;
     }
 }
@@ -333,11 +398,11 @@ function initializeDashboard() {
     }
 }
 
-let trades = JSON.parse(localStorage.getItem("trading_trades")) || [];
-let accountHistory = JSON.parse(localStorage.getItem("accountHistory")) || [];
-let deposits = JSON.parse(localStorage.getItem("deposits")) || [];
-let withdrawals = JSON.parse(localStorage.getItem("withdrawals")) || [];
-const STARTING_BALANCE = 10000;
+let trades = window.app?.tradeManager?.trades || [];
+let accountHistory = [];
+let deposits = window.app?.tradeManager?.deposits || [];
+let withdrawals = window.app?.tradeManager?.withdrawals || [];
+const STARTING_BALANCE = 10;
 
 const todayDate = new Date();
 const today = formatDate(todayDate);
@@ -370,7 +435,7 @@ function addTrade() {
         return;
     }
 
-    const trade = {
+    const tradeData = {
         pair: pair,
         result: parseFloat(result),
         analysis: analysis,
@@ -378,12 +443,15 @@ function addTrade() {
         note: document.getElementById("note")?.value || ''
     };
 
-    // Save to localStorage
-    trades.push(trade);
-    localStorage.setItem("trading_trades", JSON.stringify(trades));
-    
-    // Save to Supabase
-    saveTradeToSupabase(trade);
+    // Use tradeManager (new system) which handles localStorage and Supabase
+    if (window.tradeManager) {
+        window.tradeManager.addTrade(tradeData);
+    } else {
+        // Fallback for old system
+        trades.push(tradeData);
+        localStorage.setItem("trading_trades", JSON.stringify(trades));
+        saveTradeToSupabase(tradeData);
+    }
 
     selectedDate = date;
     displayTrades();
@@ -408,16 +476,23 @@ function addDeposit() {
         return;
     }
     
-    const deposit = {
+    const depositData = {
         amount: amount,
-        date: today,
-        id: Date.now()
+        date: today
     };
     
-    deposits.push(deposit);
-    localStorage.setItem("deposits", JSON.stringify(deposits));
-    console.log('💰 Deposit added:', deposit);
-    console.log('Total deposits:', deposits);
+    // Use tradeManager (new system) which handles localStorage and Supabase
+    if (window.tradeManager) {
+        window.tradeManager.addDeposit(amount, today);
+    } else {
+        // Fallback for old system
+        const deposit = { ...depositData, id: Date.now() };
+        deposits.push(deposit);
+        localStorage.setItem("deposits", JSON.stringify(deposits));
+        saveDepositToSupabase(deposit);
+    }
+    
+    console.log('💰 Deposit added:', depositData);
     
     document.getElementById("deposit-amount").value = "";
     
@@ -437,26 +512,40 @@ function addWithdrawal() {
         return;
     }
     
-    const totalPL = trades.reduce((sum, t) => sum + (t.result || 0), 0);
-    const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
-    const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
-    const currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
+    // Check balance via tradeManager if available
+    let currentBalance = STARTING_BALANCE;
+    if (window.tradeManager) {
+        const state = window.tradeManager.getState();
+        currentBalance = state.currentBalance;
+    } else {
+        const totalPL = trades.reduce((sum, t) => sum + (t.result || 0), 0);
+        const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
+        const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+        currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
+    }
     
     if (amount > currentBalance) {
         alert("Insufficient funds! Current balance: $" + currentBalance.toFixed(2));
         return;
     }
     
-    const withdrawal = {
+    const withdrawalData = {
         amount: amount,
-        date: today,
-        id: Date.now()
+        date: today
     };
     
-    withdrawals.push(withdrawal);
-    localStorage.setItem("withdrawals", JSON.stringify(withdrawals));
-    console.log('💸 Withdrawal added:', withdrawal);
-    console.log('Total withdrawals:', withdrawals);
+    // Use tradeManager (new system) which handles localStorage and Supabase
+    if (window.tradeManager) {
+        window.tradeManager.addWithdrawal(amount, today);
+    } else {
+        // Fallback for old system
+        const withdrawal = { ...withdrawalData, id: Date.now() };
+        withdrawals.push(withdrawal);
+        localStorage.setItem("withdrawals", JSON.stringify(withdrawals));
+        saveWithdrawalToSupabase(withdrawal);
+    }
+    
+    console.log('💸 Withdrawal added:', withdrawalData);
     
     document.getElementById("withdrawal-amount").value = "";
     
@@ -1239,15 +1328,21 @@ function filterNewsByImpact(impact) {
 // Delete Trade Function
 function deleteTrade(index) {
     if (confirm("Are you sure you want to delete this trade?")) {
-        trades.splice(index, 1);
-        accountHistory = []; // Reset account history
-        localStorage.setItem("trades", JSON.stringify(trades));
-        localStorage.setItem("accountHistory", JSON.stringify(accountHistory));
-        displayTrades();
-        renderCalendar();
-        updateDashboardStats();
-        updateCharts();
-        updateAccountSize();
+        // Use tradeManager if available (new system)
+        if (window.tradeManager && trades[index]) {
+            window.tradeManager.deleteTrade(trades[index].id);
+        } else {
+            // Fallback for old system
+            trades.splice(index, 1);
+            accountHistory = []; // Reset account history
+            localStorage.setItem("trades", JSON.stringify(trades));
+            localStorage.setItem("accountHistory", JSON.stringify(accountHistory));
+            displayTrades();
+            renderCalendar();
+            updateDashboardStats();
+            updateCharts();
+            updateAccountSize();
+        }
     }
 }
 

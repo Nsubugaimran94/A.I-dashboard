@@ -12,6 +12,8 @@ class TradingDashboardApp {
     constructor() {
         this.equityChart = null;
         this.currentFilter = 'all';
+        this.supabaseClient = window.supabaseClient || null;
+        this.userId = localStorage.getItem('userId');
         this.init();
     }
 
@@ -23,6 +25,7 @@ class TradingDashboardApp {
         
         this.setupEventListeners();
         this.subscribeToUpdates();
+        this.updateHeaderBalance();
         this.render();
     }
 
@@ -54,8 +57,22 @@ class TradingDashboardApp {
      */
     subscribeToUpdates() {
         tradeManager.subscribe((state) => {
+            this.updateHeaderBalance();
             this.render();
         });
+    }
+
+    /**
+     * Update header balance display
+     */
+    updateHeaderBalance() {
+        const state = tradeManager.getState();
+        const headerBalance = document.getElementById('currentBalance');
+        
+        if (headerBalance) {
+            headerBalance.textContent = '$' + state.currentBalance.toFixed(2);
+            headerBalance.style.color = state.currentBalance >= state.startingBalance ? '#10b981' : '#ef4444';
+        }
     }
 
     /**
@@ -75,7 +92,7 @@ class TradingDashboardApp {
             return;
         }
 
-        tradeManager.addTrade({
+        const trade = tradeManager.addTrade({
             pair: pair.toUpperCase(),
             result,
             date,
@@ -83,12 +100,49 @@ class TradingDashboardApp {
             note: note || ''
         });
 
+        // Save to Supabase
+        this.saveTradeToSupabase(trade);
+
         // Clear form
         document.getElementById('input-pair').value = '';
         document.getElementById('input-result').value = '';
         document.getElementById('input-note').value = '';
         document.getElementById('input-analysis').value = '';
         document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+    }
+
+    /**
+     * Save trade to Supabase
+     */
+    async saveTradeToSupabase(trade) {
+        if (!this.supabaseClient || !this.userId) {
+            console.log('⚠️ Supabase not available, trade saved to localStorage only');
+            return;
+        }
+
+        try {
+            const { data, error } = await this.supabaseClient
+                .from('trades')
+                .insert([
+                    {
+                        user_id: this.userId,
+                        pair: trade.pair,
+                        result: trade.result,
+                        analysis: trade.analysis,
+                        date: trade.date,
+                        note: trade.note || '',
+                        created_at: new Date().toISOString()
+                    }
+                ]);
+            
+            if (error) {
+                console.error('❌ Error saving trade to Supabase:', error);
+            } else {
+                console.log('✅ Trade saved to Supabase:', trade);
+            }
+        } catch (error) {
+            console.error('❌ Supabase save exception:', error);
+        }
     }
 
     /**
