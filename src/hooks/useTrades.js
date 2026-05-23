@@ -25,7 +25,7 @@ import {
 class TradeManager {
     constructor() {
         this.trades = getTrades();
-        this.startingBalance = getStartingBalance() || 10000;
+        this.startingBalance = getStartingBalance() || 0;
         this.deposits = getDeposits();
         this.withdrawals = getWithdrawals();
         this.accountHistory = getAccountHistory();

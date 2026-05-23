@@ -7,7 +7,7 @@
 let inMemoryTrades = [];
 let inMemoryDeposits = [];
 let inMemoryWithdrawals = [];
-let inMemoryStartingBalance = 10000;
+let inMemoryStartingBalance = 0;
 let inMemoryAccountHistory = [];
 
 /**
