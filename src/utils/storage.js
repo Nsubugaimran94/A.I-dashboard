@@ -1,186 +1,114 @@
 /**
- * Storage Management Module
- * Handles all localStorage operations for persistent data management
+ * Storage Management Module - SUPABASE ONLY
+ * No localStorage - everything goes to Supabase
+ * This module keeps data in memory until it's persisted to Supabase
  */
 
-const STORAGE_KEYS = {
-    TRADES: 'trading_trades',
-    ACCOUNT_BALANCE: 'trading_account_balance',
-    STARTING_BALANCE: 'trading_starting_balance',
-    ACCOUNT_HISTORY: 'trading_account_history',
-    DEPOSITS: 'trading_deposits',
-    WITHDRAWALS: 'trading_withdrawals'
-};
+let inMemoryTrades = [];
+let inMemoryDeposits = [];
+let inMemoryWithdrawals = [];
+let inMemoryStartingBalance = 10000;
+let inMemoryAccountHistory = [];
 
 /**
- * Save trades to localStorage
+ * Save trades (memory only - Supabase handled separately)
  */
 export function saveTrades(trades) {
-    try {
-        localStorage.setItem(STORAGE_KEYS.TRADES, JSON.stringify(trades));
-        return true;
-    } catch (error) {
-        console.error('Error saving trades:', error);
-        return false;
-    }
+    inMemoryTrades = trades;
+    return true;
 }
 
 /**
- * Get trades from localStorage
+ * Get trades from memory
  */
 export function getTrades() {
-    try {
-        const trades = localStorage.getItem(STORAGE_KEYS.TRADES);
-        return trades ? JSON.parse(trades) : [];
-    } catch (error) {
-        console.error('Error retrieving trades:', error);
-        return [];
-    }
+    return inMemoryTrades;
 }
 
 /**
- * Save account balance to localStorage
+ * Save account balance (memory only)
  */
 export function saveAccountBalance(balance) {
-    try {
-        localStorage.setItem(STORAGE_KEYS.ACCOUNT_BALANCE, JSON.stringify(balance));
-        return true;
-    } catch (error) {
-        console.error('Error saving account balance:', error);
-        return false;
-    }
+    return true;
 }
 
 /**
- * Get account balance from localStorage
+ * Get account balance from memory
  */
 export function getAccountBalance() {
-    try {
-        const balance = localStorage.getItem(STORAGE_KEYS.ACCOUNT_BALANCE);
-        return balance ? JSON.parse(balance) : 0;
-    } catch (error) {
-        console.error('Error retrieving account balance:', error);
-        return 0;
-    }
+    return 0;
 }
 
 /**
- * Save starting balance to localStorage
+ * Save starting balance (memory only)
  */
 export function saveStartingBalance(balance) {
-    try {
-        localStorage.setItem(STORAGE_KEYS.STARTING_BALANCE, JSON.stringify(balance));
-        return true;
-    } catch (error) {
-        console.error('Error saving starting balance:', error);
-        return false;
-    }
+    inMemoryStartingBalance = balance;
+    return true;
 }
 
 /**
- * Get starting balance from localStorage
+ * Get starting balance from memory
  */
 export function getStartingBalance() {
-    try {
-        const balance = localStorage.getItem(STORAGE_KEYS.STARTING_BALANCE);
-        return balance ? JSON.parse(balance) : 0;
-    } catch (error) {
-        console.error('Error retrieving starting balance:', error);
-        return 0;
-    }
+    return inMemoryStartingBalance;
 }
 
 /**
- * Save account history
+ * Save account history (memory only)
  */
 export function saveAccountHistory(history) {
-    try {
-        localStorage.setItem(STORAGE_KEYS.ACCOUNT_HISTORY, JSON.stringify(history));
-        return true;
-    } catch (error) {
-        console.error('Error saving account history:', error);
-        return false;
-    }
+    inMemoryAccountHistory = history;
+    return true;
 }
 
 /**
- * Get account history
+ * Get account history from memory
  */
 export function getAccountHistory() {
-    try {
-        const history = localStorage.getItem(STORAGE_KEYS.ACCOUNT_HISTORY);
-        return history ? JSON.parse(history) : [];
-    } catch (error) {
-        console.error('Error retrieving account history:', error);
-        return [];
-    }
+    return inMemoryAccountHistory;
 }
 
 /**
- * Save deposits
+ * Save deposits (memory only - Supabase handled separately)
  */
 export function saveDeposits(deposits) {
-    try {
-        localStorage.setItem(STORAGE_KEYS.DEPOSITS, JSON.stringify(deposits));
-        return true;
-    } catch (error) {
-        console.error('Error saving deposits:', error);
-        return false;
-    }
+    inMemoryDeposits = deposits;
+    return true;
 }
 
 /**
- * Get deposits
+ * Get deposits from memory
  */
 export function getDeposits() {
-    try {
-        const deposits = localStorage.getItem(STORAGE_KEYS.DEPOSITS);
-        return deposits ? JSON.parse(deposits) : [];
-    } catch (error) {
-        console.error('Error retrieving deposits:', error);
-        return [];
-    }
+    return inMemoryDeposits;
 }
 
 /**
- * Save withdrawals
+ * Save withdrawals (memory only - Supabase handled separately)
  */
 export function saveWithdrawals(withdrawals) {
-    try {
-        localStorage.setItem(STORAGE_KEYS.WITHDRAWALS, JSON.stringify(withdrawals));
-        return true;
-    } catch (error) {
-        console.error('Error saving withdrawals:', error);
-        return false;
-    }
+    inMemoryWithdrawals = withdrawals;
+    return true;
 }
 
 /**
- * Get withdrawals
+ * Get withdrawals from memory
  */
 export function getWithdrawals() {
-    try {
-        const withdrawals = localStorage.getItem(STORAGE_KEYS.WITHDRAWALS);
-        return withdrawals ? JSON.parse(withdrawals) : [];
-    } catch (error) {
-        console.error('Error retrieving withdrawals:', error);
-        return [];
-    }
+    return inMemoryWithdrawals;
 }
 
 /**
- * Clear all trading data (for reset functionality)
+ * Clear all data from memory
  */
 export function clearAllData() {
-    try {
-        Object.values(STORAGE_KEYS).forEach(key => {
-            localStorage.removeItem(key);
-        });
-        return true;
-    } catch (error) {
-        console.error('Error clearing data:', error);
-        return false;
-    }
+    inMemoryTrades = [];
+    inMemoryDeposits = [];
+    inMemoryWithdrawals = [];
+    inMemoryStartingBalance = 10000;
+    inMemoryAccountHistory = [];
+    return true;
 }
 
 /**
@@ -188,11 +116,11 @@ export function clearAllData() {
  */
 export function exportAllData() {
     return {
-        trades: getTrades(),
-        accountBalance: getAccountBalance(),
-        startingBalance: getStartingBalance(),
-        accountHistory: getAccountHistory(),
-        deposits: getDeposits(),
-        withdrawals: getWithdrawals()
+        trades: inMemoryTrades,
+        accountBalance: 0,
+        startingBalance: inMemoryStartingBalance,
+        accountHistory: inMemoryAccountHistory,
+        deposits: inMemoryDeposits,
+        withdrawals: inMemoryWithdrawals
     };
 }

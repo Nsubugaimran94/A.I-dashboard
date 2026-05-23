@@ -3,6 +3,7 @@ const supabaseUrl = "https://qzhiseywodahrtqcdtpe.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF6aGlzZXl3b2RhaHJ0cWNkdHBlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg4NDgxMDgsImV4cCI6MjA5NDQyNDEwOH0.8ApFcHsPCtN0Tdp1uWyIDahHgeT_mO6bB6yi5hVjKKo";
 
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
+window.supabaseClient = supabaseClient;
 
 // Supabase Auth Functions
 async function supabaseSignUp(email, password) {
@@ -113,12 +114,13 @@ async function loadTradesFromSupabase() {
             return;
         }
         
-        if (data && window.tradeManager) {
-            // Update tradeManager with Supabase data
+        if (data) {
             trades = data;
-            window.tradeManager.trades = data;
-            window.tradeManager.saveTrades();
-            window.tradeManager.notify();
+            if (window.tradeManager) {
+                window.tradeManager.trades = data;
+                window.tradeManager.saveTrades();
+                window.tradeManager.notify();
+            }
             displayTrades();
             renderCalendar();
             updateDashboardStats();
@@ -443,15 +445,15 @@ function addTrade() {
         note: document.getElementById("note")?.value || ''
     };
 
-    // Use tradeManager (new system) which handles localStorage and Supabase
-    if (window.tradeManager) {
-        window.tradeManager.addTrade(tradeData);
-    } else {
-        // Fallback for old system
-        trades.push(tradeData);
-        localStorage.setItem("trading_trades", JSON.stringify(trades));
-        saveTradeToSupabase(tradeData);
-    }
+// Use tradeManager (new system) which handles Supabase
+        if (window.tradeManager) {
+            window.tradeManager.addTrade(tradeData);
+            saveTradeToSupabase(tradeData);
+        } else {
+            // Fallback - save to Supabase only
+            trades.push(tradeData);
+            saveTradeToSupabase(tradeData);
+        }
 
     selectedDate = date;
     displayTrades();
@@ -481,14 +483,15 @@ function addDeposit() {
         date: today
     };
     
-    // Use tradeManager (new system) which handles localStorage and Supabase
+    // Use tradeManager (new system) which handles Supabase
+    let deposit;
     if (window.tradeManager) {
-        window.tradeManager.addDeposit(amount, today);
+        deposit = window.tradeManager.addDeposit(amount, today);
+        saveDepositToSupabase(deposit);
     } else {
-        // Fallback for old system
-        const deposit = { ...depositData, id: Date.now() };
+        // Fallback - save to Supabase only
+        deposit = { ...depositData, id: Date.now() };
         deposits.push(deposit);
-        localStorage.setItem("deposits", JSON.stringify(deposits));
         saveDepositToSupabase(deposit);
     }
     
@@ -534,14 +537,15 @@ function addWithdrawal() {
         date: today
     };
     
-    // Use tradeManager (new system) which handles localStorage and Supabase
+    // Use tradeManager (new system) which handles Supabase
+    let withdrawal;
     if (window.tradeManager) {
-        window.tradeManager.addWithdrawal(amount, today);
+        withdrawal = window.tradeManager.addWithdrawal(amount, today);
+        saveWithdrawalToSupabase(withdrawal);
     } else {
-        // Fallback for old system
-        const withdrawal = { ...withdrawalData, id: Date.now() };
+        // Fallback - save to Supabase only
+        withdrawal = { ...withdrawalData, id: Date.now() };
         withdrawals.push(withdrawal);
-        localStorage.setItem("withdrawals", JSON.stringify(withdrawals));
         saveWithdrawalToSupabase(withdrawal);
     }
     
@@ -823,8 +827,7 @@ function updateAccountSize() {
     // Update account history display
     displayTransactionHistory();
     
-    // Save to localStorage
-    localStorage.setItem("accountHistory", JSON.stringify(accountHistory));
+    // Account history synced to Supabase via trades
     
     console.log('✅ Account Balance Updated - Current Balance: $' + currentBalance.toFixed(2));
 }
@@ -1330,7 +1333,9 @@ function deleteTrade(index) {
     if (confirm("Are you sure you want to delete this trade?")) {
         // Use tradeManager if available (new system)
         if (window.tradeManager && trades[index]) {
-            window.tradeManager.deleteTrade(trades[index].id);
+            const tradeId = trades[index].id;
+            window.tradeManager.deleteTrade(tradeId);
+            deleteTradeFromSupabase(tradeId);
         } else {
             // Fallback for old system
             trades.splice(index, 1);

@@ -112,9 +112,11 @@ export class EquityCurveChart {
         
         // Ensure we have valid data
         if (!data || data.length === 0) {
-            console.warn('⚠️ No data provided to equity curve chart');
-            data = [{ date: new Date().toISOString().split('T')[0], balance: 0, trades: 0 }];
+            console.warn('⚠️ No data provided to equity curve chart, using placeholder');
+            data = [{ date: new Date().toISOString().split('T')[0], balance: 10000, trades: 0 }];
         }
+
+        console.log('📊 Chart Init - Data points:', data.length, 'First:', data[0], 'Last:', data[data.length-1]);
 
         // Calculate gradient for profit/loss zones
         const gradient = ctx.createLinearGradient(0, 0, 0, 400);
@@ -125,7 +127,7 @@ export class EquityCurveChart {
         this.chart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: data.map((d, i) => i),
+                labels: data.map((d, i) => d.date || i),
                 datasets: [{
                     label: 'Account Equity',
                     data: data,
