@@ -105,6 +105,8 @@ async function loadUserBalance(userId) {
             const cachedBalance = localStorage.getItem("userStartingBalance");
             const balance = parseFloat(cachedBalance || "0");
             
+            STARTING_BALANCE = balance; // CRITICAL: Update global STARTING_BALANCE
+            
             if (window.tradeManager) {
                 window.tradeManager.startingBalance = balance;
                 window.tradeManager.saveStartingBalance();
@@ -114,11 +116,13 @@ async function loadUserBalance(userId) {
         
         // Successfully loaded balance from Supabase
         const balance = data?.balance || 0;
+        STARTING_BALANCE = Number(balance); // CRITICAL: Update global STARTING_BALANCE with actual user balance
+        
         console.log('✅ User balance loaded from Supabase:', balance, 'for user:', userId);
         
         // Update tradeManager with loaded balance
         if (window.tradeManager) {
-            window.tradeManager.startingBalance = parseFloat(balance);
+            window.tradeManager.startingBalance = Number(balance);
             window.tradeManager.saveStartingBalance();
         }
         
@@ -130,6 +134,7 @@ async function loadUserBalance(userId) {
         console.error('❌ Exception loading user balance:', error);
         // Fallback
         const cachedBalance = localStorage.getItem("userStartingBalance") || "0";
+        STARTING_BALANCE = parseFloat(cachedBalance);
         if (window.tradeManager) {
             window.tradeManager.startingBalance = parseFloat(cachedBalance);
             window.tradeManager.saveStartingBalance();
@@ -190,7 +195,7 @@ async function saveTradeToSupabase(trade) {
                 {
                     user_id: userId,
                     pair: trade.pair,
-                    result: trade.result,
+                    result: Number(trade.result), // Ensure stored as number, not string
                     analysis: trade.analysis,
                     date: trade.date,
                     note: trade.note || '',
@@ -199,12 +204,13 @@ async function saveTradeToSupabase(trade) {
             ]);
         
         if (error) {
-            console.error('Error saving trade:', error);
+            console.error('❌ Error saving trade:', error);
             return false;
         }
+        console.log('✅ Trade saved to Supabase:', trade);
         return true;
     } catch (error) {
-        console.error('Error saving trade to Supabase:', error);
+        console.error('❌ Error saving trade to Supabase:', error);
         return false;
     }
 }
@@ -221,14 +227,19 @@ async function loadTradesFromSupabase() {
             .order('date', { ascending: false });
         
         if (error) {
-            console.error('Error loading trades:', error);
+            console.error('❌ Error loading trades:', error);
             return;
         }
         
         if (data) {
-            trades = data;
+            // Ensure all numeric fields are properly converted to numbers
+            trades = data.map(trade => ({
+                ...trade,
+                result: Number(trade.result)
+            }));
+            
             if (window.tradeManager) {
-                window.tradeManager.trades = data;
+                window.tradeManager.trades = trades;
                 window.tradeManager.saveTrades();
                 window.tradeManager.notify();
             }
@@ -236,9 +247,10 @@ async function loadTradesFromSupabase() {
             renderCalendar();
             updateDashboardStats();
             updateCharts();
+            updateAccountSize();
         }
     } catch (error) {
-        console.error('Error loading trades from Supabase:', error);
+        console.error('❌ Error loading trades from Supabase:', error);
     }
 }
 
@@ -273,7 +285,7 @@ async function saveDepositToSupabase(deposit) {
             .insert([
                 {
                     user_id: userId,
-                    amount: deposit.amount,
+                    amount: Number(deposit.amount), // Ensure stored as number, not string
                     date: deposit.date,
                     created_at: new Date().toISOString()
                 }
@@ -304,7 +316,7 @@ async function saveWithdrawalToSupabase(withdrawal) {
             .insert([
                 {
                     user_id: userId,
-                    amount: withdrawal.amount,
+                    amount: Number(withdrawal.amount), // Ensure stored as number, not string
                     date: withdrawal.date,
                     created_at: new Date().toISOString()
                 }
@@ -523,7 +535,7 @@ let trades = window.app?.tradeManager?.trades || [];
 let accountHistory = [];
 let deposits = window.app?.tradeManager?.deposits || [];
 let withdrawals = window.app?.tradeManager?.withdrawals || [];
-const STARTING_BALANCE = 0;
+let STARTING_BALANCE = 0; // CRITICAL: This is updated when user logs in with their balance from Supabase
 
 const todayDate = new Date();
 const today = formatDate(todayDate);
@@ -543,6 +555,35 @@ function formatDate(date) {
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
+}
+
+/**
+ * Parse and validate numeric input
+ * Handles +/- signs and ensures proper numeric conversion
+ * @param {string} input - Raw input string
+ * @returns {number|null} - Parsed number or null if invalid
+ */
+function parseNumericInput(input) {
+    if (typeof input !== 'string') {
+        input = String(input);
+    }
+    
+    // Trim whitespace
+    input = input.trim();
+    
+    if (!input) {
+        return null;
+    }
+    
+    // Allow +/- sign at the start
+    const parsed = parseFloat(input);
+    
+    // Validate it's a proper number
+    if (isNaN(parsed) || !isFinite(parsed)) {
+        return null;
+    }
+    
+    return parsed;
 }
 
 function addTrade() {
@@ -591,11 +632,16 @@ function addTrade() {
 }
 
 function addDeposit() {
-    const amount = parseFloat(document.getElementById("deposit-amount")?.value);
-    if (!amount || amount <= 0) {
-        alert("Please enter a valid deposit amount");
+    const inputValue = document.getElementById("deposit-amount")?.value;
+    const parsedAmount = parseNumericInput(inputValue);
+    
+    if (parsedAmount === null || parsedAmount <= 0) {
+        alert("Please enter a valid deposit amount (positive number)");
         return;
     }
+    
+    // For deposits, ensure it's positive
+    const amount = Math.abs(parsedAmount);
     
     const depositData = {
         amount: amount,
@@ -628,11 +674,16 @@ function addDeposit() {
 }
 
 function addWithdrawal() {
-    const amount = parseFloat(document.getElementById("withdrawal-amount")?.value);
-    if (!amount || amount <= 0) {
-        alert("Please enter a valid withdrawal amount");
+    const inputValue = document.getElementById("withdrawal-amount")?.value;
+    const parsedAmount = parseNumericInput(inputValue);
+    
+    if (parsedAmount === null || parsedAmount <= 0) {
+        alert("Please enter a valid withdrawal amount (positive number)");
         return;
     }
+    
+    // For withdrawals, ensure it's positive
+    const amount = Math.abs(parsedAmount);
     
     // Check balance via tradeManager if available
     let currentBalance = STARTING_BALANCE;
@@ -640,9 +691,9 @@ function addWithdrawal() {
         const state = window.tradeManager.getState();
         currentBalance = state.currentBalance;
     } else {
-        const totalPL = trades.reduce((sum, t) => sum + (t.result || 0), 0);
-        const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
-        const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+        const totalPL = trades.reduce((sum, t) => sum + (Number(t.result) || 0), 0);
+        const totalDeposits = deposits.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+        const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
         currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
     }
     
@@ -926,15 +977,26 @@ function switchTab(tabName) {
 
 // Account Size Tracking Functions
 function updateAccountSize() {
-    // Calculate P&L from trades
-    const totalPL = trades.reduce((sum, t) => sum + (t.result || 0), 0);
+    // Ensure all values are properly converted to numbers
+    const totalPL = trades.reduce((sum, t) => {
+        const result = Number(t.result) || 0;
+        return sum + result;
+    }, 0);
     
     // Calculate total deposits and withdrawals
-    const totalDeposits = deposits.reduce((sum, d) => sum + (d.amount || 0), 0);
-    const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (w.amount || 0), 0);
+    const totalDeposits = deposits.reduce((sum, d) => {
+        const amount = Number(d.amount) || 0;
+        return sum + amount;
+    }, 0);
+    
+    const totalWithdrawals = withdrawals.reduce((sum, w) => {
+        const amount = Number(w.amount) || 0;
+        return sum + amount;
+    }, 0);
     
     // Current balance = Starting balance + P&L + Deposits - Withdrawals
-    const currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
+    // STARTING_BALANCE is now the actual user balance from Supabase, updated on login
+    const currentBalance = Number(STARTING_BALANCE) + totalPL + totalDeposits - totalWithdrawals;
     
     // Update header balance display
     const headerBalance = document.getElementById('currentBalance');

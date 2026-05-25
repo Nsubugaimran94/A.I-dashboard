@@ -159,7 +159,7 @@
                     </div>
                     <div class="form-group-premium">
                         <label for="input-result">Profit/Loss ($) *</label>
-                        <input type="number" id="input-result" step="0.01" placeholder="e.g., 150 or -50" required>
+                        <input type="text" id="input-result" placeholder="e.g., +150 or -50" inputmode="decimal" pattern="^[+-]?\d*\.?\d+$" required>
                     </div>
                     <div class="form-group-premium">
                         <label for="input-date">Date *</label>
@@ -189,11 +189,11 @@
                 <h2 style="margin-bottom: var(--spacing-lg); color: var(--primary);">💳 Account Management</h2>
                 <div class="account-management-grid">
                     <div class="account-row">
-                        <input type="number" id="deposit-amount" placeholder="Deposit Amount" class="account-input" step="0.01" />
+                        <input type="text" id="deposit-amount" placeholder="+100" class="account-input" inputmode="decimal" pattern="^[+]?\d*\.?\d+$" />
                         <button class="btn-premium success account-btn" onclick="addDeposit()" style="background: linear-gradient(135deg, #10b981, #059669);">💰 Add Deposit</button>
                     </div>
                     <div class="account-row">
-                        <input type="number" id="withdrawal-amount" placeholder="Withdrawal Amount" class="account-input" step="0.01" />
+                        <input type="text" id="withdrawal-amount" placeholder="50" class="account-input" inputmode="decimal" pattern="^\d*\.?\d+$" />
                         <button class="btn-premium danger account-btn" onclick="addWithdrawal()" style="background: linear-gradient(135deg, #ef4444, #dc2626);">💸 Add Withdrawal</button>
                     </div>
                 </div>

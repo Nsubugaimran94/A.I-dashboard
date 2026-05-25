@@ -69,19 +69,20 @@ class TradingDashboardApp {
         e.preventDefault();
 
         const pair = document.getElementById('input-pair')?.value;
-        const result = parseFloat(document.getElementById('input-result')?.value);
+        const resultInput = document.getElementById('input-result')?.value;
+        const result = parseFloat(resultInput);
         const date = document.getElementById('input-date')?.value || new Date().toISOString().split('T')[0];
         const analysis = document.getElementById('input-analysis')?.value;
         const note = document.getElementById('input-note')?.value;
 
-        if (!pair || !result || !analysis) {
-            alert('Please fill in all required fields');
+        if (!pair || isNaN(result) || !analysis) {
+            alert('Please fill in all required fields with valid numbers');
             return;
         }
 
         const trade = tradeManager.addTrade({
             pair: pair.toUpperCase(),
-            result,
+            result: Number(result), // Ensure stored as number
             date,
             analysis,
             note: note || ''
@@ -114,7 +115,7 @@ class TradingDashboardApp {
                     {
                         user_id: this.userId,
                         pair: trade.pair,
-                        result: trade.result,
+                        result: Number(trade.result), // Ensure stored as number, not string
                         analysis: trade.analysis,
                         date: trade.date,
                         note: trade.note || '',

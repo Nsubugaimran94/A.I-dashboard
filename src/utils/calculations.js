@@ -5,20 +5,21 @@
 
 /**
  * Calculate current equity/balance
+ * Ensures all values are properly converted to numbers
  */
 export function calculateCurrentEquity(trades, startingBalance, deposits, withdrawals) {
-    const tradesPL = trades.reduce((sum, trade) => sum + (trade.result || 0), 0);
-    const totalDeposits = deposits.reduce((sum, dep) => sum + (dep.amount || 0), 0);
-    const totalWithdrawals = withdrawals.reduce((sum, wd) => sum + (wd.amount || 0), 0);
+    const tradesPL = trades.reduce((sum, trade) => sum + (Number(trade.result) || 0), 0);
+    const totalDeposits = deposits.reduce((sum, dep) => sum + (Number(dep.amount) || 0), 0);
+    const totalWithdrawals = withdrawals.reduce((sum, wd) => sum + (Number(wd.amount) || 0), 0);
     
-    return startingBalance + tradesPL + totalDeposits - totalWithdrawals;
+    return Number(startingBalance) + tradesPL + totalDeposits - totalWithdrawals;
 }
 
 /**
  * Calculate total profit/loss
  */
 export function calculateTotalPL(trades) {
-    return trades.reduce((sum, trade) => sum + (trade.result || 0), 0);
+    return trades.reduce((sum, trade) => sum + (Number(trade.result) || 0), 0);
 }
 
 /**
@@ -65,7 +66,7 @@ export function calculatePercentageGain(currentBalance, startingBalance) {
  */
 export function calculateAverageTrade(trades) {
     if (trades.length === 0) return 0;
-    const totalPL = trades.reduce((sum, trade) => sum + (trade.result || 0), 0);
+    const totalPL = trades.reduce((sum, trade) => sum + (Number(trade.result) || 0), 0);
     return totalPL / trades.length;
 }
 
@@ -74,12 +75,12 @@ export function calculateAverageTrade(trades) {
  */
 export function calculateProfitFactor(trades) {
     const wins = trades
-        .filter(t => t.result > 0)
-        .reduce((sum, t) => sum + t.result, 0);
+        .filter(t => Number(t.result) > 0)
+        .reduce((sum, t) => sum + Number(t.result), 0);
     
     const losses = Math.abs(trades
-        .filter(t => t.result < 0)
-        .reduce((sum, t) => sum + t.result, 0));
+        .filter(t => Number(t.result) < 0)
+        .reduce((sum, t) => sum + Number(t.result), 0));
     
     if (losses === 0) return wins > 0 ? Infinity : 0;
     return wins / losses;
@@ -112,15 +113,15 @@ export function calculateDrawdown(equityHistory) {
  * Generate equity curve data
  */
 export function generateEquityCurveData(trades, startingBalance, deposits, withdrawals) {
-    let balance = startingBalance;
+    let balance = Number(startingBalance);
     const equityData = [];
     
     // Create all events sorted by date
     const allEvents = [
         { type: 'start', date: new Date().toISOString().split('T')[0], amount: 0 },
-        ...trades.map(t => ({ ...t, type: 'trade' })),
-        ...deposits.map(d => ({ ...d, type: 'deposit' })),
-        ...withdrawals.map(w => ({ ...w, type: 'withdrawal' }))
+        ...trades.map(t => ({ ...t, type: 'trade', result: Number(t.result) })),
+        ...deposits.map(d => ({ ...d, type: 'deposit', amount: Number(d.amount) })),
+        ...withdrawals.map(w => ({ ...w, type: 'withdrawal', amount: Number(w.amount) }))
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
 
     let tradeCount = 0;
@@ -129,36 +130,36 @@ export function generateEquityCurveData(trades, startingBalance, deposits, withd
         if (event.type === 'start') {
             equityData.push({
                 date: event.date,
-                balance: startingBalance,
+                balance: Number(startingBalance),
                 trades: 0
             });
         } else if (event.type === 'trade') {
-            balance += event.result;
+            balance += Number(event.result);
             tradeCount++;
             equityData.push({
                 date: event.date,
                 balance,
                 trades: tradeCount,
-                tradeResult: event.result,
+                tradeResult: Number(event.result),
                 pair: event.pair
             });
         } else if (event.type === 'deposit') {
-            balance += event.amount;
+            balance += Number(event.amount);
             equityData.push({
                 date: event.date,
                 balance,
                 trades: tradeCount,
                 eventType: 'deposit',
-                amount: event.amount
+                amount: Number(event.amount)
             });
         } else if (event.type === 'withdrawal') {
-            balance -= event.amount;
+            balance -= Number(event.amount);
             equityData.push({
                 date: event.date,
                 balance,
                 trades: tradeCount,
                 eventType: 'withdrawal',
-                amount: event.amount
+                amount: Number(event.amount)
             });
         }
     });
@@ -167,7 +168,7 @@ export function generateEquityCurveData(trades, startingBalance, deposits, withd
     if (equityData.length === 0) {
         equityData.push({
             date: new Date().toISOString().split('T')[0],
-            balance: startingBalance,
+            balance: Number(startingBalance),
             trades: 0
         });
     }
