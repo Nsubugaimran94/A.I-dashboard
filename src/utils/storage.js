@@ -106,7 +106,7 @@ export function clearAllData() {
     inMemoryTrades = [];
     inMemoryDeposits = [];
     inMemoryWithdrawals = [];
-    inMemoryStartingBalance = 10000;
+    inMemoryStartingBalance = 0; // New accounts start with $0, not $10,000
     inMemoryAccountHistory = [];
     return true;
 }

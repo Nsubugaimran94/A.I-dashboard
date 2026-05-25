@@ -221,7 +221,7 @@ class TradeManager {
      */
     clearAllData() {
         this.trades = [];
-        this.startingBalance = 10000;
+        this.startingBalance = 0; // New accounts start with $0, not $10,000
         this.deposits = [];
         this.withdrawals = [];
         this.accountHistory = [];

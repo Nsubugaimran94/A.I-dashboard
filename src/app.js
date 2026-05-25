@@ -57,22 +57,9 @@ class TradingDashboardApp {
      */
     subscribeToUpdates() {
         tradeManager.subscribe((state) => {
-            this.updateHeaderBalance();
+            // Header balance already updated by script.js updateAccountSize()
             this.render();
         });
-    }
-
-    /**
-     * Update header balance display
-     */
-    updateHeaderBalance() {
-        const state = tradeManager.getState();
-        const headerBalance = document.getElementById('currentBalance');
-        
-        if (headerBalance) {
-            headerBalance.textContent = '$' + state.currentBalance.toFixed(2);
-            headerBalance.style.color = state.currentBalance >= state.startingBalance ? '#10b981' : '#ef4444';
-        }
     }
 
     /**

@@ -57,6 +57,117 @@ async function supabaseLogin(email, password) {
         return { success: false, message: error.message };
     }
 }
+
+/**
+ * Initialize user starting balance on account creation
+ * Inserts a user_balance record into Supabase with balance = 0
+ */
+async function initializeUserBalance(userId) {
+    try {
+        // Insert into user_balance table in Supabase
+        const { data, error } = await supabaseClient
+            .from('user_balance')
+            .insert([{ user_id: userId, balance: 0 }])
+            .select();
+        
+        if (error) {
+            console.error('❌ Error initializing user balance in Supabase:', error);
+            // Fallback to localStorage if Supabase fails
+            localStorage.setItem("userStartingBalance", "0");
+            return false;
+        }
+        
+        console.log('✅ User balance initialized to $0 in Supabase for user:', userId);
+        return true;
+    } catch (error) {
+        console.error('❌ Exception initializing user balance:', error);
+        localStorage.setItem("userStartingBalance", "0");
+        return false;
+    }
+}
+
+/**
+ * Load user balance data on login
+ * Fetches balance from Supabase user_balance table
+ */
+async function loadUserBalance(userId) {
+    try {
+        // Load user's balance from Supabase
+        const { data, error } = await supabaseClient
+            .from('user_balance')
+            .select('balance')
+            .eq('user_id', userId)
+            .single();
+        
+        if (error) {
+            console.warn('⚠️ Could not load balance from Supabase:', error);
+            // Fallback: Check localStorage, then default to 0
+            const cachedBalance = localStorage.getItem("userStartingBalance");
+            const balance = parseFloat(cachedBalance || "0");
+            
+            if (window.tradeManager) {
+                window.tradeManager.startingBalance = balance;
+                window.tradeManager.saveStartingBalance();
+            }
+            return true;
+        }
+        
+        // Successfully loaded balance from Supabase
+        const balance = data?.balance || 0;
+        console.log('✅ User balance loaded from Supabase:', balance, 'for user:', userId);
+        
+        // Update tradeManager with loaded balance
+        if (window.tradeManager) {
+            window.tradeManager.startingBalance = parseFloat(balance);
+            window.tradeManager.saveStartingBalance();
+        }
+        
+        // Cache in localStorage as backup
+        localStorage.setItem("userStartingBalance", String(balance));
+        
+        return true;
+    } catch (error) {
+        console.error('❌ Exception loading user balance:', error);
+        // Fallback
+        const cachedBalance = localStorage.getItem("userStartingBalance") || "0";
+        if (window.tradeManager) {
+            window.tradeManager.startingBalance = parseFloat(cachedBalance);
+            window.tradeManager.saveStartingBalance();
+        }
+        return false;
+    }
+}
+
+/**
+ * Update user balance in Supabase
+ * Called after any balance-changing operation (trade, deposit, withdrawal)
+ */
+async function updateUserBalanceInSupabase(newBalance) {
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+        console.warn('⚠️ No user ID, cannot update balance');
+        return false;
+    }
+    
+    try {
+        const { data, error } = await supabaseClient
+            .from('user_balance')
+            .update({ balance: newBalance, updated_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .select();
+        
+        if (error) {
+            console.error('❌ Error updating balance in Supabase:', error);
+            return false;
+        }
+        
+        console.log('✅ Balance updated in Supabase:', newBalance);
+        return true;
+    } catch (error) {
+        console.error('❌ Exception updating balance:', error);
+        return false;
+    }
+}
     // Mobile viewport fix for keyboard
 if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
     const vh = window.innerHeight * 0.01;
@@ -225,6 +336,7 @@ async function checkAuthentication() {
         localStorage.setItem("authToken", session.access_token);
         localStorage.setItem("userName", session.user.email);
         localStorage.setItem("userId", session.user.id);
+        await loadUserBalance(session.user.id);
         showDashboard();
         await loadTradesFromSupabase();
     } else {
@@ -276,6 +388,11 @@ async function handleSignup(event) {
     const result = await supabaseSignUp(email, password);
     
     if (result.success) {
+        // Get the user ID for the newly created account
+        const { data: { user } } = await supabaseClient.auth.getUser();
+        if (user) {
+            await initializeUserBalance(user.id);
+        }
         alert(result.message);
         // Clear form
         document.getElementById("signupForm").reset();
@@ -302,9 +419,13 @@ async function handleLogin(event) {
     const result = await supabaseLogin(email, password);
     
     if (result.success) {
+        const userId = localStorage.getItem("userId");
+        if (userId) {
+            await loadUserBalance(userId);
+        }
         alert(result.message);
         showDashboard();
-        loadTradesFromSupabase();
+        await loadTradesFromSupabase();
     } else {
         alert("Login failed: " + result.message);
     }
@@ -354,6 +475,7 @@ async function handleLogout() {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userName");
         localStorage.removeItem("userId");
+        localStorage.removeItem("userStartingBalance");
         
         isAuthenticated = false;
         currentUser = null;
@@ -374,10 +496,7 @@ function showDashboard() {
     // Initialize dashboard with longer delay to ensure DOM is ready
     setTimeout(() => {
         initializeDashboard();
-        // Call updateAccountSize again to ensure balance is updated
-        setTimeout(() => {
-            updateAccountSize();
-        }, 200);
+        // updateAccountSize() is already called in initializeDashboard() - NO DUPLICATE
     }, 300);
 }
 
@@ -404,7 +523,7 @@ let trades = window.app?.tradeManager?.trades || [];
 let accountHistory = [];
 let deposits = window.app?.tradeManager?.deposits || [];
 let withdrawals = window.app?.tradeManager?.withdrawals || [];
-const STARTING_BALANCE = 10;
+const STARTING_BALANCE = 0;
 
 const todayDate = new Date();
 const today = formatDate(todayDate);
@@ -827,7 +946,8 @@ function updateAccountSize() {
     // Update account history display
     displayTransactionHistory();
     
-    // Account history synced to Supabase via trades
+    // Persist balance to Supabase
+    updateUserBalanceInSupabase(currentBalance);
     
     console.log('✅ Account Balance Updated - Current Balance: $' + currentBalance.toFixed(2));
 }
