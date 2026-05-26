@@ -26,18 +26,19 @@ CREATE POLICY "System can insert user balance on signup" ON user_balance
 
 -- ============================================
 -- TRADES TABLE
--- CRITICAL: result MUST be DECIMAL/NUMERIC for proper financial calculations
+-- CRITICAL: profit_loss MUST be DECIMAL/NUMERIC for proper financial calculations
 -- ============================================
 CREATE TABLE IF NOT EXISTS trades (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   pair VARCHAR(20) NOT NULL,
-  result DECIMAL(15,2) NOT NULL, -- CRITICAL: Profit/Loss must be stored as DECIMAL, not TEXT or INTEGER
+  result DECIMAL(15,2), -- DEPRECATED: Use profit_loss instead
+  profit_loss DECIMAL(15,2) NOT NULL DEFAULT 0, -- CRITICAL: Numeric P&L amount (+/- values)
   analysis VARCHAR(50) NOT NULL,
   date DATE NOT NULL,
   note TEXT DEFAULT '',
   created_at TIMESTAMP DEFAULT NOW(),
-  CONSTRAINT valid_result CHECK (result IS NOT NULL)
+  CONSTRAINT valid_profit_loss CHECK (profit_loss IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS idx_trades_user_id ON trades(user_id);

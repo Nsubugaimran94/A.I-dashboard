@@ -115,7 +115,8 @@ class TradingDashboardApp {
                     {
                         user_id: this.userId,
                         pair: trade.pair,
-                        result: Number(trade.result), // Ensure stored as number, not string
+                        profit_loss: Number(trade.result), // Save P&L as profit_loss field
+                        result: Number(trade.result), // Keep for backward compatibility
                         analysis: trade.analysis,
                         date: trade.date,
                         note: trade.note || '',
@@ -125,11 +126,19 @@ class TradingDashboardApp {
             
             if (error) {
                 console.error('❌ Error saving trade to Supabase:', error);
-            } else {
-                console.log('✅ Trade saved to Supabase:', trade);
+                return false;
             }
+            
+            // Update global balance immediately (optimistic UI)
+            if (window.updateAccountSizeUI) {
+                window.updateAccountSizeUI();
+            }
+            
+            console.log('✅ Trade saved to Supabase with P&L:', trade);
+            return true;
         } catch (error) {
             console.error('❌ Supabase save exception:', error);
+            return false;
         }
     }
 

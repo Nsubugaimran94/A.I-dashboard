@@ -1,0 +1,11 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Diagnose Performance",
+			"type": "shell",
+			"command": "echo 'Performance diagnosis starting...'",
+			"group": "build"
+		}
+	]
+}

@@ -7,6 +7,8 @@
     <title>Professional Equity Tracking Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="src/css/components.css">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#0f172a">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
@@ -160,6 +162,7 @@
                     <div class="form-group-premium">
                         <label for="input-result">Profit/Loss ($) *</label>
                         <input type="text" id="input-result" placeholder="e.g., +150 or -50" inputmode="decimal" pattern="^[+-]?\d*\.?\d+$" required>
+                        <small style="color: var(--text-secondary); display: block; margin-top: 4px; font-size: 0.85rem;">Win: +100 | Loss: -50</small>
                     </div>
                     <div class="form-group-premium">
                         <label for="input-date">Date *</label>
@@ -259,7 +262,7 @@
         </div>
     </div>
 
-    </div>
+</body>
 
     <!-- Load Supabase Library First -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -268,10 +271,121 @@
     <script src="script.js"></script>
     <script src="auth.js"></script>
     
+    <!-- PWA Install Prompt -->
+    <div id="installPromptContainer" style="display: none; position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%); border-radius: 16px; padding: 20px; border: 1px solid rgba(56, 189, 248, 0.3); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4); max-width: 320px; animation: slideUp 0.3s ease-in-out;">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <div style="font-size: 2rem;">📱</div>
+            <div style="flex: 1;">
+                <h3 style="color: #38bdf8; margin: 0 0 8px 0; font-size: 1.1rem;">Install App</h3>
+                <p style="color: #e2e8f0; margin: 0 0 12px 0; font-size: 0.9rem;">Get instant access to your trading dashboard on any device</p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="installBtn" style="flex: 1; background: linear-gradient(135deg, #38bdf8, #0ea5e9); border: none; color: white; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem;">Install</button>
+                    <button id="dismissBtn" style="flex: 1; background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: #38bdf8; padding: 10px 16px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.9rem;">Later</button>
+                </div>
+            </div>
+            <button id="closeInstallBtn" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer; padding: 0; width: 24px; height: 24px;">×</button>
+        </div>
+    </div>
+
+    <style>
+        @keyframes slideUp {
+            from { transform: translateY(400px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+    
     <!-- Professional Dashboard Module -->
     <script type="module">
         import TradingDashboardApp from './src/app.js';
         // App initializes on import
+    </script>
+
+    <!-- PWA Install Handler -->
+    <script>
+        let deferredPrompt;
+
+        // Listen for install prompt
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install prompt after user is logged in and dashboard is visible
+            setTimeout(() => {
+                if (document.getElementById('dashboardSection').style.display !== 'none') {
+                    showInstallPrompt();
+                }
+            }, 2000);
+        });
+
+        function showInstallPrompt() {
+            const container = document.getElementById('installPromptContainer');
+            if (container) {
+                container.style.display = 'block';
+            }
+        }
+
+        function hideInstallPrompt() {
+            const container = document.getElementById('installPromptContainer');
+            if (container) {
+                container.style.display = 'none';
+            }
+        }
+
+        // Install button handler
+        const installBtn = document.getElementById('installBtn');
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    
+                    if (outcome === 'accepted') {
+                        console.log('✅ App installed successfully');
+                        showNotification('✅ App installed! Open it from your home screen', 'success');
+                    } else {
+                        console.log('❌ App installation dismissed');
+                    }
+                    
+                    deferredPrompt = null;
+                    hideInstallPrompt();
+                }
+            });
+        }
+
+        // Dismiss button handler
+        const dismissBtn = document.getElementById('dismissBtn');
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', () => {
+                hideInstallPrompt();
+                // Don't show again for this session
+                localStorage.setItem('installPromptDismissed', 'true');
+            });
+        }
+
+        // Close button handler
+        const closeBtn = document.getElementById('closeInstallBtn');
+        if (closeBtn) {
+            closeBtn.addEventListener('click', () => {
+                hideInstallPrompt();
+                localStorage.setItem('installPromptDismissed', 'true');
+            });
+        }
+
+        // App installed handler
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ PWA successfully installed to home screen');
+            hideInstallPrompt();
+            deferredPrompt = null;
+            localStorage.setItem('appInstalled', 'true');
+        });
+
+        // Check if already installed or dismissed
+        window.addEventListener('load', () => {
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                // App is already running as PWA
+                hideInstallPrompt();
+            }
+        });
     </script>
 
 </body>

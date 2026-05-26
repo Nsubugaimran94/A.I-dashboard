@@ -74,19 +74,22 @@ export class DashboardUI {
                     <tr>
                         <th>Date</th>
                         <th>Pair</th>
-                        <th>Result</th>
+                        <th>P&L</th>
                         <th>Analysis</th>
                         <th>Note</th>
                         <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${sortedTrades.map(trade => `
+                    ${sortedTrades.map(trade => {
+                        // Use profit_loss if available, fall back to result
+                        const pnl = trade.profit_loss !== undefined ? trade.profit_loss : trade.result;
+                        return `
                         <tr>
                             <td>${formatDate(trade.date)}</td>
                             <td><strong>${trade.pair.toUpperCase()}</strong></td>
-                            <td class="${trade.result >= 0 ? 'positive' : 'negative'}">
-                                ${trade.result >= 0 ? '+' : ''}${formatCurrency(trade.result)}
+                            <td class="${pnl >= 0 ? 'positive' : 'negative'}">
+                                ${pnl >= 0 ? '+' : ''}${formatCurrency(pnl)}
                             </td>
                             <td>${trade.analysis}</td>
                             <td style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
@@ -98,7 +101,8 @@ export class DashboardUI {
                                 </button>
                             </td>
                         </tr>
-                    `).join('')}
+                    `;
+                    }).join('')}
                 </tbody>
             </table>
         `;
@@ -123,12 +127,16 @@ export class DashboardUI {
         const container = document.getElementById('best-worst-container');
         if (!container) return;
 
+        // Get actual P&L values from stats
+        const bestPnl = stats.bestTrade?.profit_loss !== undefined ? stats.bestTrade.profit_loss : (stats.bestTrade?.result || 0);
+        const worstPnl = stats.worstTrade?.profit_loss !== undefined ? stats.worstTrade.profit_loss : (stats.worstTrade?.result || 0);
+
         container.innerHTML = `
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-lg);">
                 <div class="glass-card">
                     <div class="stat-card-premium__label">Best Trade</div>
                     <div class="stat-card-premium__value" style="color: var(--success);">
-                        +${formatCurrency(stats.bestTrade?.result || 0)}
+                        +${formatCurrency(Math.abs(bestPnl))}
                     </div>
                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: var(--spacing-md);">
                         ${stats.bestTrade?.pair || 'N/A'}
@@ -137,7 +145,7 @@ export class DashboardUI {
                 <div class="glass-card">
                     <div class="stat-card-premium__label">Worst Trade</div>
                     <div class="stat-card-premium__value" style="color: var(--danger);">
-                        ${formatCurrency(stats.worstTrade?.result || 0)}
+                        ${formatCurrency(worstPnl)}
                     </div>
                     <div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: var(--spacing-md);">
                         ${stats.worstTrade?.pair || 'N/A'}

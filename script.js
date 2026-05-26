@@ -5,6 +5,21 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 const supabaseClient = supabase.createClient(supabaseUrl, supabaseKey);
 window.supabaseClient = supabaseClient;
 
+// ============================================================
+// PWA SERVICE WORKER REGISTRATION
+// ============================================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/public/sw.js')
+            .then((registration) => {
+                console.log('✅ Service Worker registered successfully:', registration);
+            })
+            .catch((error) => {
+                console.warn('⚠️ Service Worker registration failed:', error);
+            });
+    });
+}
+
 // Supabase Auth Functions
 async function supabaseSignUp(email, password) {
     try {
@@ -195,7 +210,8 @@ async function saveTradeToSupabase(trade) {
                 {
                     user_id: userId,
                     pair: trade.pair,
-                    result: Number(trade.result), // Ensure stored as number, not string
+                    profit_loss: Number(trade.result), // Store P&L as profit_loss field
+                    result: Number(trade.result), // Keep for backward compatibility
                     analysis: trade.analysis,
                     date: trade.date,
                     note: trade.note || '',
@@ -207,7 +223,11 @@ async function saveTradeToSupabase(trade) {
             console.error('❌ Error saving trade:', error);
             return false;
         }
-        console.log('✅ Trade saved to Supabase:', trade);
+        
+        // Trigger instant balance update
+        updateAccountSizeUI();
+        
+        console.log('✅ Trade saved to Supabase with P&L:', trade);
         return true;
     } catch (error) {
         console.error('❌ Error saving trade to Supabase:', error);
@@ -233,9 +253,11 @@ async function loadTradesFromSupabase() {
         
         if (data) {
             // Ensure all numeric fields are properly converted to numbers
+            // Use profit_loss if available, fall back to result for backward compatibility
             trades = data.map(trade => ({
                 ...trade,
-                result: Number(trade.result)
+                result: Number(trade.result || trade.profit_loss || 0),
+                profit_loss: Number(trade.profit_loss || trade.result || 0)
             }));
             
             if (window.tradeManager) {
@@ -662,13 +684,13 @@ function addDeposit() {
     
     console.log('💰 Deposit added:', depositData);
     
+    // ✅ INSTANT UI UPDATE
+    updateAccountSizeUI();
+    
     document.getElementById("deposit-amount").value = "";
     
-    // Force update all displays
+    // Schedule heavy updates
     updateAccountSize();
-    updateDashboardStats();
-    updateCharts();
-    displayTrades();
     
     showNotification(`Deposit of $${amount.toFixed(2)} added successfully!`, 'success');
 }
@@ -691,10 +713,7 @@ function addWithdrawal() {
         const state = window.tradeManager.getState();
         currentBalance = state.currentBalance;
     } else {
-        const totalPL = trades.reduce((sum, t) => sum + (Number(t.result) || 0), 0);
-        const totalDeposits = deposits.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
-        const totalWithdrawals = withdrawals.reduce((sum, w) => sum + (Number(w.amount) || 0), 0);
-        currentBalance = STARTING_BALANCE + totalPL + totalDeposits - totalWithdrawals;
+        currentBalance = calculateCurrentBalance();
     }
     
     if (amount > currentBalance) {
@@ -721,13 +740,13 @@ function addWithdrawal() {
     
     console.log('💸 Withdrawal added:', withdrawalData);
     
+    // ✅ INSTANT UI UPDATE
+    updateAccountSizeUI();
+    
     document.getElementById("withdrawal-amount").value = "";
     
-    // Force update all displays
+    // Schedule heavy updates
     updateAccountSize();
-    updateDashboardStats();
-    updateCharts();
-    displayTrades();
     
     showNotification(`Withdrawal of $${amount.toFixed(2)} processed successfully!`, 'success');
 }
@@ -939,18 +958,39 @@ function initCharts() {
 function updateCharts() {
     if (!accountProfitLossChart) return;
 
+    // ✅ OPTIMIZATION: Only recalculate if trades have changed
+    // Store previous trade count to avoid unnecessary updates
+    const currentTradeCount = trades.length;
+    
+    if (!updateCharts.lastTradeCount) {
+        updateCharts.lastTradeCount = currentTradeCount;
+    }
+    
+    // Skip update if trade count hasn't changed (means we're updating other UI)
+    // This is safe because addTrade() always increases the count
+    const tradeCountChanged = updateCharts.lastTradeCount !== currentTradeCount;
+    
+    if (!tradeCountChanged && chartData && chartData.length === currentTradeCount) {
+        // Chart is already up-to-date
+        return;
+    }
+    
+    updateCharts.lastTradeCount = currentTradeCount;
+
     // Account Profit/Loss Chart
     let accountBalance = 0;
     const sortedTrades = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
     const chartLabels = sortedTrades.map((t, idx) => `Trade ${idx + 1}`);
     const chartData = sortedTrades.map(t => {
-        accountBalance += t.result;
+        accountBalance += Number(t.result) || 0;
         return accountBalance;
     });
 
     accountProfitLossChart.data.labels = chartLabels;
     accountProfitLossChart.data.datasets[0].data = chartData;
-    accountProfitLossChart.update();
+    
+    // ✅ OPTIMIZATION: Use more efficient update options
+    accountProfitLossChart.update('none');  // 'none' = fastest update, no animation
 }
 
 // Tab Switching Function
@@ -975,15 +1015,25 @@ function switchTab(tabName) {
     }
 }
 
-// Account Size Tracking Functions
-function updateAccountSize() {
-    // Ensure all values are properly converted to numbers
+// ============================================================
+// OPTIMIZED ACCOUNT SIZE TRACKING
+// ============================================================
+
+// Debounce timer for heavy UI updates
+let updateDebounceTimer = null;
+
+/**
+ * Calculate current balance (lightweight, pure calculation)
+ * No DOM manipulation - returns value only
+ * FORMULA: balance = starting + deposits - withdrawals + trades.PnL
+ */
+function calculateCurrentBalance() {
     const totalPL = trades.reduce((sum, t) => {
-        const result = Number(t.result) || 0;
-        return sum + result;
+        // Use profit_loss if available, fall back to result
+        const pnl = Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0));
+        return sum + pnl;
     }, 0);
     
-    // Calculate total deposits and withdrawals
     const totalDeposits = deposits.reduce((sum, d) => {
         const amount = Number(d.amount) || 0;
         return sum + amount;
@@ -994,31 +1044,82 @@ function updateAccountSize() {
         return sum + amount;
     }, 0);
     
-    // Current balance = Starting balance + P&L + Deposits - Withdrawals
-    // STARTING_BALANCE is now the actual user balance from Supabase, updated on login
-    const currentBalance = Number(STARTING_BALANCE) + totalPL + totalDeposits - totalWithdrawals;
+    return Number(STARTING_BALANCE) + totalDeposits - totalWithdrawals + totalPL;
+}
+
+/**
+ * Update balance in UI immediately (FAST - critical path)
+ * This is called on transaction submit for instant feedback
+ */
+function updateAccountSizeUI() {
+    const currentBalance = calculateCurrentBalance();
     
-    // Update header balance display
+    // ✅ IMMEDIATE DOM UPDATE - Only update what changed
     const headerBalance = document.getElementById('currentBalance');
     if (headerBalance) {
         headerBalance.textContent = '$' + currentBalance.toFixed(2);
         headerBalance.style.color = currentBalance >= STARTING_BALANCE ? '#10b981' : '#ef4444';
     }
     
-    // Update account history display
-    displayTransactionHistory();
-    
-    // Persist balance to Supabase
+    // ✅ FIRE-AND-FORGET to Supabase (async, non-blocking)
     updateUserBalanceInSupabase(currentBalance);
     
     console.log('✅ Account Balance Updated - Current Balance: $' + currentBalance.toFixed(2));
 }
 
+/**
+ * Update heavy UI elements (deferred)
+ * Called from within requestIdleCallback or after short delay
+ * These don't need to be instant - users don't expect them to be
+ */
+function updateHeavyUIElements() {
+    // Update transaction history display
+    displayTransactionHistory();
+    
+    // Update dashboard stats
+    updateDashboardStats();
+    
+    // Update charts
+    updateCharts();
+    
+    // Update trades display
+    displayTrades();
+}
+
+/**
+ * Optimized account size update with debouncing
+ * CRITICAL PATH: Updates balance immediately, defers heavy operations
+ */
+function updateAccountSize() {
+    // ✅ PHASE 1: Update balance display immediately (fast)
+    updateAccountSizeUI();
+    
+    // ✅ PHASE 2: Schedule heavy UI updates for idle time (deferred)
+    // Clear existing timer to debounce rapid transactions
+    if (updateDebounceTimer) {
+        clearTimeout(updateDebounceTimer);
+    }
+    
+    // Use requestIdleCallback if available (waits for idle time)
+    // Fall back to setTimeout(0) for better browser compatibility
+    if (typeof requestIdleCallback !== 'undefined') {
+        updateDebounceTimer = requestIdleCallback(() => {
+            updateHeavyUIElements();
+            updateDebounceTimer = null;
+        }, { timeout: 500 });
+    } else {
+        // Fallback: Defer with setTimeout for at least 50ms
+        // This gives browser time to process other events
+        updateDebounceTimer = setTimeout(() => {
+            updateHeavyUIElements();
+            updateDebounceTimer = null;
+        }, 50);
+    }
+}
+
 function displayTransactionHistory() {
     const historyContainer = document.getElementById('accountSizeHistory');
-    if (!historyContainer) return; // Element doesn't exist anymore
-    
-    historyContainer.innerHTML = '';
+    if (!historyContainer) return;
     
     // Combine all transactions
     const allTransactions = [
@@ -1031,6 +1132,9 @@ function displayTransactionHistory() {
         historyContainer.innerHTML = '<p style="text-align: center; color: #94a3b8;">No transactions yet</p>';
         return;
     }
+    
+    // ✅ OPTIMIZATION: Use DocumentFragment for batch DOM operations (single reflow)
+    const fragment = document.createDocumentFragment();
     
     allTransactions.forEach((tx) => {
         const historyItem = document.createElement('div');
@@ -1062,13 +1166,17 @@ function displayTransactionHistory() {
                 <div style="text-align: right; font-weight: bold; color: ${color}; font-size: 1.1rem;">$${displayAmount}</div>
             </div>
         `;
-        historyContainer.appendChild(historyItem);
+        
+        fragment.appendChild(historyItem);
     });
+    
+    // ✅ OPTIMIZATION: Clear and append all at once (single reflow, not N+1)
+    historyContainer.innerHTML = '';
+    historyContainer.appendChild(fragment);
 }
 
 function displayTrades() {
     const tradesContainer = document.getElementById("trades-container") || document.getElementById("trades");
-    tradesContainer.innerHTML = "";
 
     const filteredTrades = selectedDate
         ? trades.filter(trade => trade.date === selectedDate)
@@ -1079,6 +1187,7 @@ function displayTrades() {
         : "All Trades";
 
     if (filteredTrades.length === 0) {
+        tradesContainer.innerHTML = '';
         const emptyMessage = document.createElement("div");
         emptyMessage.classList.add("empty-message");
         emptyMessage.textContent = selectedDate
@@ -1094,6 +1203,9 @@ function displayTrades() {
     const countEl = document.getElementById("tradesCount");
     if (countEl) countEl.textContent = `${filteredTrades.length} trade${filteredTrades.length !== 1 ? 's' : ''}`;
 
+    // ✅ OPTIMIZATION: Use DocumentFragment to batch DOM operations
+    const fragment = document.createDocumentFragment();
+    
     for (let i = 0; i < filteredTrades.length; i++) {
         const trade = filteredTrades[i];
         const tradeIndex = trades.indexOf(trade);
@@ -1103,12 +1215,14 @@ function displayTrades() {
         const tradeInfo = document.createElement("div");
         tradeInfo.classList.add("trade-info");
         
-        const resultColor = trade.result > 0 ? '#10b981' : '#ef4444';
-        const resultSign = trade.result > 0 ? '+' : '';
+        // Use profit_loss if available, fall back to result
+        const pnl = trade.profit_loss !== undefined ? trade.profit_loss : trade.result;
+        const resultColor = Number(pnl) > 0 ? '#10b981' : '#ef4444';
+        const resultSign = Number(pnl) > 0 ? '+' : '';
         
         tradeInfo.innerHTML = `
             <h2>${trade.pair}</h2>
-            <p><strong>P&L:</strong> <span style="color: ${resultColor}; font-weight: bold;">${resultSign}$${trade.result.toFixed(2)}</span></p>
+            <p><strong>P&L:</strong> <span style="color: ${resultColor}; font-weight: bold;">${resultSign}$${Number(pnl).toFixed(2)}</span></p>
             <p><strong>Analysis:</strong> ${trade.analysis}</p>
             <p><strong>Date:</strong> ${trade.date}</p>
         `;
@@ -1124,8 +1238,13 @@ function displayTrades() {
         tradeActions.appendChild(deleteBtn);
         tradeCard.appendChild(tradeInfo);
         tradeCard.appendChild(tradeActions);
-        tradesContainer.appendChild(tradeCard);
+        
+        fragment.appendChild(tradeCard);
     }
+    
+    // ✅ OPTIMIZATION: Clear and append all at once (single reflow, not N+1)
+    tradesContainer.innerHTML = '';
+    tradesContainer.appendChild(fragment);
 }
 
 function renderCalendar() {

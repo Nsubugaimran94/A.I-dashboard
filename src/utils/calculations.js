@@ -6,20 +6,32 @@
 /**
  * Calculate current equity/balance
  * Ensures all values are properly converted to numbers
+ * Uses profit_loss field when available, falls back to result
  */
 export function calculateCurrentEquity(trades, startingBalance, deposits, withdrawals) {
-    const tradesPL = trades.reduce((sum, trade) => sum + (Number(trade.result) || 0), 0);
+    // Sum trade P&L (use profit_loss if available, fall back to result)
+    const tradesPL = trades.reduce((sum, trade) => {
+        const pnl = Number(trade.profit_loss !== undefined ? trade.profit_loss : (trade.result || 0));
+        return sum + pnl;
+    }, 0);
+    
     const totalDeposits = deposits.reduce((sum, dep) => sum + (Number(dep.amount) || 0), 0);
     const totalWithdrawals = withdrawals.reduce((sum, wd) => sum + (Number(wd.amount) || 0), 0);
     
-    return Number(startingBalance) + tradesPL + totalDeposits - totalWithdrawals;
+    // FORMULA: balance = starting + deposits - withdrawals + PnL
+    const currentBalance = Number(startingBalance) + totalDeposits - totalWithdrawals + tradesPL;
+    
+    return currentBalance;
 }
 
 /**
  * Calculate total profit/loss
  */
 export function calculateTotalPL(trades) {
-    return trades.reduce((sum, trade) => sum + (Number(trade.result) || 0), 0);
+    return trades.reduce((sum, trade) => {
+        const pnl = Number(trade.profit_loss !== undefined ? trade.profit_loss : (trade.result || 0));
+        return sum + pnl;
+    }, 0);
 }
 
 /**
@@ -27,7 +39,10 @@ export function calculateTotalPL(trades) {
  */
 export function calculateWinRate(trades) {
     if (trades.length === 0) return 0;
-    const wins = trades.filter(t => t.result > 0).length;
+    const wins = trades.filter(t => {
+        const pnl = Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0));
+        return pnl > 0;
+    }).length;
     return (wins / trades.length) * 100;
 }
 
@@ -35,10 +50,12 @@ export function calculateWinRate(trades) {
  * Calculate best trade
  */
 export function calculateBestTrade(trades) {
-    if (trades.length === 0) return { result: 0, pair: 'N/A', date: null };
-    const best = trades.reduce((max, trade) => 
-        trade.result > max.result ? trade : max
-    );
+    if (trades.length === 0) return { result: 0, profit_loss: 0, pair: 'N/A', date: null };
+    const best = trades.reduce((max, trade) => {
+        const maxPnl = Number(max.profit_loss !== undefined ? max.profit_loss : (max.result || 0));
+        const tradePnl = Number(trade.profit_loss !== undefined ? trade.profit_loss : (trade.result || 0));
+        return tradePnl > maxPnl ? trade : max;
+    });
     return best;
 }
 
@@ -46,10 +63,12 @@ export function calculateBestTrade(trades) {
  * Calculate worst trade
  */
 export function calculateWorstTrade(trades) {
-    if (trades.length === 0) return { result: 0, pair: 'N/A', date: null };
-    const worst = trades.reduce((min, trade) => 
-        trade.result < min.result ? trade : min
-    );
+    if (trades.length === 0) return { result: 0, profit_loss: 0, pair: 'N/A', date: null };
+    const worst = trades.reduce((min, trade) => {
+        const minPnl = Number(min.profit_loss !== undefined ? min.profit_loss : (min.result || 0));
+        const tradePnl = Number(trade.profit_loss !== undefined ? trade.profit_loss : (trade.result || 0));
+        return tradePnl < minPnl ? trade : min;
+    });
     return worst;
 }
 
@@ -66,7 +85,10 @@ export function calculatePercentageGain(currentBalance, startingBalance) {
  */
 export function calculateAverageTrade(trades) {
     if (trades.length === 0) return 0;
-    const totalPL = trades.reduce((sum, trade) => sum + (Number(trade.result) || 0), 0);
+    const totalPL = trades.reduce((sum, trade) => {
+        const pnl = Number(trade.profit_loss !== undefined ? trade.profit_loss : (trade.result || 0));
+        return sum + pnl;
+    }, 0);
     return totalPL / trades.length;
 }
 
@@ -75,12 +97,24 @@ export function calculateAverageTrade(trades) {
  */
 export function calculateProfitFactor(trades) {
     const wins = trades
-        .filter(t => Number(t.result) > 0)
-        .reduce((sum, t) => sum + Number(t.result), 0);
+        .filter(t => {
+            const pnl = Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0));
+            return pnl > 0;
+        })
+        .reduce((sum, t) => {
+            const pnl = Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0));
+            return sum + pnl;
+        }, 0);
     
     const losses = Math.abs(trades
-        .filter(t => Number(t.result) < 0)
-        .reduce((sum, t) => sum + Number(t.result), 0));
+        .filter(t => {
+            const pnl = Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0));
+            return pnl < 0;
+        })
+        .reduce((sum, t) => {
+            const pnl = Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0));
+            return sum + pnl;
+        }, 0));
     
     if (losses === 0) return wins > 0 ? Infinity : 0;
     return wins / losses;
@@ -119,7 +153,11 @@ export function generateEquityCurveData(trades, startingBalance, deposits, withd
     // Create all events sorted by date
     const allEvents = [
         { type: 'start', date: new Date().toISOString().split('T')[0], amount: 0 },
-        ...trades.map(t => ({ ...t, type: 'trade', result: Number(t.result) })),
+        ...trades.map(t => ({ 
+            ...t, 
+            type: 'trade', 
+            result: Number(t.profit_loss !== undefined ? t.profit_loss : (t.result || 0))
+        })),
         ...deposits.map(d => ({ ...d, type: 'deposit', amount: Number(d.amount) })),
         ...withdrawals.map(w => ({ ...w, type: 'withdrawal', amount: Number(w.amount) }))
     ].sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -134,13 +172,15 @@ export function generateEquityCurveData(trades, startingBalance, deposits, withd
                 trades: 0
             });
         } else if (event.type === 'trade') {
-            balance += Number(event.result);
+            // Use profit_loss for calculation
+            const pnl = Number(event.profit_loss !== undefined ? event.profit_loss : (event.result || 0));
+            balance += pnl;
             tradeCount++;
             equityData.push({
                 date: event.date,
                 balance,
                 trades: tradeCount,
-                tradeResult: Number(event.result),
+                tradeResult: pnl,
                 pair: event.pair
             });
         } else if (event.type === 'deposit') {
