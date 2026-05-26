@@ -302,20 +302,20 @@
 
     <!-- PWA Install Handler -->
     <script>
-        let deferredPrompt;
+  let deferredPrompt;
 
-        // Listen for install prompt
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            
-            // Show install prompt after user is logged in and dashboard is visible
-            setTimeout(() => {
-                if (document.getElementById('dashboardSection').style.display !== 'none') {
-                    showInstallPrompt();
-                }
-            }, 2000);
-        });
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    // Show immediately — don't wait for dashboard
+    showInstallPrompt();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    console.log('PWA installed');
+  });
+</script>
 
         function showInstallPrompt() {
             const container = document.getElementById('installPromptContainer');
