@@ -301,22 +301,96 @@
     </script>
 
     <!-- PWA Install Handler -->
-    <script>
-  let deferredPrompt;
+<script>
+let deferredPrompt;
 
-  window.addEventListener('beforeinstallprompt', (e) => {
+function showInstallPrompt() {
+    const container = document.getElementById('installPromptContainer');
+
+    if (container) {
+        container.style.display = 'block';
+    }
+}
+
+function hideInstallPrompt() {
+    const container = document.getElementById('installPromptContainer');
+
+    if (container) {
+        container.style.display = 'none';
+    }
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
+
     deferredPrompt = e;
-    // Show immediately — don't wait for dashboard
+
+    console.log('✅ Install prompt available');
+
     showInstallPrompt();
-  });
+});
 
-  window.addEventListener('appinstalled', () => {
+window.addEventListener('appinstalled', () => {
+    console.log('✅ PWA Installed');
+
     deferredPrompt = null;
-    console.log('PWA installed');
-  });
-</script>
 
+    hideInstallPrompt();
+
+    localStorage.setItem('appInstalled', 'true');
+});
+
+const installBtn = document.getElementById('installBtn');
+
+if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+
+        if (!deferredPrompt) {
+            console.log('❌ No install prompt available');
+            return;
+        }
+
+        deferredPrompt.prompt();
+
+        const { outcome } = await deferredPrompt.userChoice;
+
+        console.log('User choice:', outcome);
+
+        deferredPrompt = null;
+
+        hideInstallPrompt();
+    });
+}
+
+const dismissBtn = document.getElementById('dismissBtn');
+
+if (dismissBtn) {
+    dismissBtn.addEventListener('click', () => {
+        hideInstallPrompt();
+
+        localStorage.setItem('installPromptDismissed', 'true');
+    });
+}
+
+const closeBtn = document.getElementById('closeInstallBtn');
+
+if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+        hideInstallPrompt();
+
+        localStorage.setItem('installPromptDismissed', 'true');
+    });
+}
+
+window.addEventListener('load', () => {
+
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+        hideInstallPrompt();
+    }
+
+});
+</script>
+}
         function showInstallPrompt() {
             const container = document.getElementById('installPromptContainer');
             if (container) {
@@ -387,7 +461,26 @@
             }
         });
     </script>
+<script>
 
+if ('serviceWorker' in navigator ) {}
+    window.addEventListener('load', async () => {
+
+        try {
+
+            const registration = await navigator.serviceWorker.register('/sw.js');
+
+            console.log('✅ Service Worker Registered:', registration);
+
+        } catch (error) {
+
+            console.error('❌ Service Worker Registration Failed:', error);
+
+        }
+
+    });
+
+</script>
 </body>
 
 </html>

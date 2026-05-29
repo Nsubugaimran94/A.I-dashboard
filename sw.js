@@ -1,4 +1,4 @@
-const CACHE_NAME = 'trading-journal-v1';
+const CACHE_NAME = 'trading-journal-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -6,7 +6,8 @@ const ASSETS_TO_CACHE = [
   '/auth.js',
   '/style.css',
   '/manifest.json',
-  '/icons/icon.jpeg'
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
 ];
 
 self.addEventListener('install', (event) => {
